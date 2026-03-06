@@ -5,6 +5,7 @@ from collections import defaultdict
 import json
 import io
 import zipfile
+from typing import Optional
 
 
 def create_property(db: Session, property_data: PropertyCreate):
@@ -93,3 +94,32 @@ def list_propertiesNew(db: Session, skip: int = 0, limit: int = 50):
 
 def get_property(db: Session, property_id: int):
     return db.query(CurrentProperty).filter(CurrentProperty.id == property_id).first()
+
+def search_properties(
+    db: Session,
+    city: Optional[str] = None,
+    property_type: Optional[str] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+    bedrooms: Optional[int] = None,
+    skip: int = 0,
+    limit: int = 10
+):
+    query = db.query(Property)
+
+    if city:
+        query = query.filter(Property.city.ilike(f"%{city}%"))
+    
+    if property_type:
+        query = query.filter(Property.property_type == property_type)
+    
+    if min_price is not None:
+        query = query.filter(Property.expected_price >= min_price)
+    
+    if max_price is not None:
+        query = query.filter(Property.expected_price <= max_price)
+    
+    if bedrooms is not None:
+        query = query.filter(Property.bedrooms == bedrooms)
+
+    return query.offset(skip).limit(limit).all()

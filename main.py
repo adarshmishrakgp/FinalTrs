@@ -13,8 +13,10 @@ import io
 from schemas import ImageDownloadRequest
 from crud import get_images_as_zip
 from s3_service import upload_file_to_s3
-from models import Property
 from fastapi.middleware.cors import CORSMiddleware
+from security import verify_password, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
+from datetime import timedelta
+import models
 
 app = FastAPI(title="Property API")
 
@@ -187,3 +189,63 @@ async def upload_image(
         "message": "Image uploaded successfully",
         "image_url": url,
     }
+
+@app.post("/login", response_model=schemas.Token)
+def login(login_data: schemas.LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(models.Customer).filter(models.Customer.email == login_data.email).first()
+    role = "customer"
+    if not user:
+        user = db.query(models.Agent).filter(models.Agent.email == login_data.email).first()
+        role = "agent"
+    if not user:
+        user = db.query(models.Builder).filter(models.Builder.email == login_data.email).first()
+        role = "builder"
+    if not user or not verify_password(login_data.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.email, "role": role, "user_id": user.id},
+        expires_delta=access_token_expires
+    )
+
+    return {"access_token": access_token, "token_type": "bearer", "role": role}
+
+@app.get("/properties/search", response_model=list[schemas.PropertyResponse])
+def search_properties_api(
+    city: Optional[str] = None,
+    property_type: Optional[str] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+    bedrooms: Optional[int] = None,
+    skip: int = 0,
+    limit: int = 10,
+    db: Session = Depends(get_db)
+):
+    properties = crud.search_properties(
+        db=db, city=city, property_type=property_type, 
+        min_price=min_price, max_price=max_price, 
+        bedrooms=bedrooms, skip=skip, limit=limit
+    )
+    import json
+    for p in properties:
+        if isinstance(p.property_features, str):
+            p.property_features = json.loads(p.property_features)
+        if isinstance(p.facilities, str):
+            p.facilities = json.loads(p.facilities)
+            
+    return properties
+
+@app.get("/properties/{property_id}", response_model=schemas.PropertyResponse)
+def get_property_by_id(property_id: int, db: Session = Depends(get_db)):
+    property_obj = db.query(models.Property).filter(models.Property.id == property_id).first()
+    
+    if not property_obj:
+        raise HTTPException(status_code=404, detail="Property not found")
+        
+    import json
+    if isinstance(property_obj.property_features, str):
+        property_obj.property_features = json.loads(property_obj.property_features)
+    if isinstance(property_obj.facilities, str):
+        property_obj.facilities = json.loads(property_obj.facilities)
+        
+    return property_obj
