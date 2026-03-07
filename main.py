@@ -16,6 +16,7 @@ from s3_service import upload_file_to_s3
 from fastapi.middleware.cors import CORSMiddleware
 from security import verify_password, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
 from datetime import timedelta
+from fastapi import Query
 import models
 
 app = FastAPI(title="Property API")
@@ -158,20 +159,34 @@ def login(login_data: schemas.LoginRequest, db: Session = Depends(get_db)):
 
 @app.get("/properties/search", response_model=list[schemas.PropertyResponse])
 def search_properties_api(
-    city: Optional[str] = None,
+    search_query: Optional[str] = Query(None, description="Search by title, city, project name or builder name"),
     property_type: Optional[str] = None,
     min_price: Optional[float] = None,
     max_price: Optional[float] = None,
     bedrooms: Optional[int] = None,
+    bathrooms: Optional[int] = None,          
+    property_post_status: Optional[str] = None,
+    possession_status: Optional[str] = None,   
+    is_price_negotiable: Optional[bool] = None,
     skip: int = 0,
     limit: int = 10,
     db: Session = Depends(get_db)
 ):
     properties = crud.search_properties(
-        db=db, city=city, property_type=property_type, 
-        min_price=min_price, max_price=max_price, 
-        bedrooms=bedrooms, skip=skip, limit=limit
+        db=db, 
+        search_query=search_query, 
+        property_type=property_type, 
+        min_price=min_price, 
+        max_price=max_price, 
+        bedrooms=bedrooms, 
+        bathrooms=bathrooms,
+        property_post_status=property_post_status,
+        possession_status=possession_status,
+        is_price_negotiable=is_price_negotiable,
+        skip=skip, 
+        limit=limit
     )
+    
     import json
     for p in properties:
         if isinstance(p.property_features, str):

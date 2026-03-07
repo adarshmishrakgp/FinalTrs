@@ -34,19 +34,21 @@ C. Register Builder
 - Body (JSON): Uses "company_name", "contact_person", "email", "phone", "password", "rera_number", "city"
 
 D. Login (Get Token)
-- Endpoint: POST /login
-- Auth Required: No
-- Content-Type: application/x-www-form-urlencoded (Form Data)
-- Body (Form Data):
-  - username: <user_email>
-  - password: <user_password>
-- Response: 
+
+  Endpoint: POST /login
+  Auth Required: No
+  Content-Type: application/json (Standard JSON Body)
+  Body (JSON):
+  {
+    "email": "<user_email>",
+    "password": "<user_password>"
+  }
+  Response (200 OK):
   {
     "access_token": "eyJhbGci...",
     "token_type": "bearer",
     "role": "customer|agent|builder"
   }
-
 ------------------------------------------------------
 2. 🏢 PROPERTIES (Standard API)
 ------------------------------------------------------
@@ -82,7 +84,10 @@ D. Create Property
 - Auth Required: YES (Role: Agent or Builder only)
 - Body (JSON): 
   {
-    "title": "Luxury Villa",
+    "title": "Luxury Villa",body: JSON.stringify({
+    email: email,
+    password: password,
+  }),
     "property_type": "VILLA",
     "city": "Los Angeles",
     "expected_price": 500000,

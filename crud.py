@@ -5,6 +5,7 @@ from collections import defaultdict
 import json
 import io
 import zipfile
+from sqlalchemy import or_
 from typing import Optional
 
 
@@ -97,29 +98,48 @@ def get_property(db: Session, property_id: int):
 
 def search_properties(
     db: Session,
-    city: Optional[str] = None,
+    search_query: Optional[str] = None,
     property_type: Optional[str] = None,
     min_price: Optional[float] = None,
     max_price: Optional[float] = None,
     bedrooms: Optional[int] = None,
+    bathrooms: Optional[int] = None,
+    property_post_status: Optional[str] = None,
+    possession_status: Optional[str] = None,
+    is_price_negotiable: Optional[bool] = None,
     skip: int = 0,
     limit: int = 10
 ):
-    query = db.query(Property)
+    query = db.query(models.Property)
 
-    if city:
-        query = query.filter(Property.city.ilike(f"%{city}%"))
-    
+    # Handle the multi-field search bar
+    if search_query:
+        search_format = f"%{search_query}%"
+        query = query.filter(
+            or_(
+                models.Property.title.ilike(search_format),
+                models.Property.city.ilike(search_format),
+                models.Property.project_name.ilike(search_format),
+                models.Property.builder_name.ilike(search_format)
+            )
+        )
+
+    # Handle the specific dropdown filters
     if property_type:
-        query = query.filter(Property.property_type == property_type)
-    
+        query = query.filter(models.Property.property_type == property_type)
     if min_price is not None:
-        query = query.filter(Property.expected_price >= min_price)
-    
+        query = query.filter(models.Property.expected_price >= min_price)
     if max_price is not None:
-        query = query.filter(Property.expected_price <= max_price)
-    
+        query = query.filter(models.Property.expected_price <= max_price)
     if bedrooms is not None:
-        query = query.filter(Property.bedrooms == bedrooms)
+        query = query.filter(models.Property.bedrooms == bedrooms)
+    if bathrooms is not None:
+        query = query.filter(models.Property.bathrooms == bathrooms)
+    if property_post_status:
+        query = query.filter(models.Property.property_post_status == property_post_status)
+    if possession_status:
+        query = query.filter(models.Property.possession_status == possession_status)
+    if is_price_negotiable is not None:
+        query = query.filter(models.Property.is_price_negotiable == is_price_negotiable)
 
     return query.offset(skip).limit(limit).all()
