@@ -23,6 +23,21 @@ app = FastAPI(title="Property API")
 # Allow requests from any frontend origin (all domains/ports)
 origins = ["*"]
 
+from fastapi.security import OAuth2PasswordBearer
+from security import decode_access_token
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    payload = decode_access_token(token)
+    if payload is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return payload
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -31,90 +46,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-'''
-# ✅ CREATE PROPERTY
-@app.post("/createproperty")
+app.post("/createproperty", response_model=schemas.PropertyResponse)
 def create_property(
-    request: schemas.PropertyCreate,
-    db: Session = Depends(get_db)
+    request: schemas.PropertyCreate, 
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
 ):
     try:
-        # ✅ Create property object (FULL FIELD MAPPING)
-        new_property = Property(
-            title=request.title,
-            property_type=request.property_type,
-            city=request.city,
-            project_name=request.project_name,
-
-            possession_status=request.possession_status,
-            property_post_status=request.property_post_status,
-
-            expected_price=request.expected_price,
-            booking_amount=request.booking_amount,
-            is_price_negotiable=request.is_price_negotiable,
-
-            carpet_area=request.carpet_area,
-            super_area=request.super_area,
-
-            bedrooms=request.bedrooms,
-            bathrooms=request.bathrooms,
-            balconies=request.balconies,
-
-            rera_id=request.rera_id,
-            builder_name=request.builder_name,
-            builder_logo=request.builder_logo,
-
-            nearby_landmarks=request.nearby_landmarks,
-            latitude=request.latitude,
-            longitude=request.longitude,
-            map_address=request.map_address,
-
-            property_features=request.property_features,
-            facilities=request.facilities,
-
-            property_age=request.property_age,
-            floor_number=request.floor_number,
-            total_floors=request.total_floors,
-
-            facing=request.facing,
-            furnished_status=request.furnished_status,
-            parking_spaces=request.parking_spaces,
-        )
-
-        # ✅ Save property
-        db.add(new_property)
-        db.commit()
-        db.refresh(new_property)
-
-        # ✅ Link images (if provided)
-        if request.image_ids:
-            updated = (
-                db.query(schemas.PropertyImage)
-                .filter(schemas.PropertyImage.id.in_(request.image_ids))
-                .update(
-                    {"property_id": new_property.id},
-                    synchronize_session=False
-                )
-            )
-
-            if updated != len(request.image_ids):
-                raise HTTPException(
-                    status_code=400,
-                    detail="Some image_ids are invalid"
-                )
-
-            db.commit()
-
-        # ✅ Response
-        return {
-            "property_id": new_property.id,
-            "message": "Property created successfully"
-        }
+        user_id = current_user.get("user_id")
+        new_property = crud.create_property(db, request, owner_id=user_id)
+        return new_property
 
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
-'''
+        logging.error(f"Error creating property: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 # ✅ GET ALL PROPERTIES
 @app.get("/properties", response_model=list[schemas.PropertyResponse])
@@ -137,7 +83,7 @@ def download_property_images(
 
     if not request.image_ids:
         raise HTTPException(status_code=400, detail="image_ids required")
-
+ # 🔐 Just requires login
     zip_bytes = get_images_as_zip(db, request.image_ids)
 
     if not zip_bytes:
