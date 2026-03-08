@@ -3,7 +3,6 @@ import models
 import schemas
 from security import hash_password
 
-
 def create_customer(db: Session, data: schemas.CustomerCreate):
     obj = models.Customer(
         full_name=data.full_name,
@@ -16,7 +15,6 @@ def create_customer(db: Session, data: schemas.CustomerCreate):
     db.commit()
     db.refresh(obj)
     return obj
-
 
 def create_agent(db: Session, data: schemas.AgentCreate):
     obj = models.Agent(
@@ -32,7 +30,6 @@ def create_agent(db: Session, data: schemas.AgentCreate):
     db.commit()
     db.refresh(obj)
     return obj
-
 
 def create_builder(db: Session, data: schemas.BuilderCreate):
     obj = models.Builder(

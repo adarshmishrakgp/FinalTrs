@@ -1,11 +1,7 @@
-from sqlalchemy import Column, BigInteger, String, Text, DECIMAL, Integer, DateTime, TIMESTAMP, func, Enum, Boolean, \
-    SmallInteger, text, TypeDecorator, TEXT
+from sqlalchemy import Column, BigInteger, String, Text, DECIMAL, Integer, DateTime, TIMESTAMP, func, Enum, Boolean, SmallInteger, text, TypeDecorator, TEXT, LargeBinary
 from database import Base
-from typing import Optional, List
 import enum
 import json
-
-
 
 class JSONEncodedList(TypeDecorator):
     impl = TEXT
@@ -21,7 +17,6 @@ class JSONEncodedList(TypeDecorator):
         return json.loads(value)
 
 # ===== ENUMS =====
-
 class PropertyType(str, enum.Enum):
     APARTMENT = "APARTMENT"
     VILLA = "VILLA"
@@ -34,14 +29,12 @@ class PropertyType(str, enum.Enum):
     PENTHOUSE = "PENTHOUSE"
     FARMHOUSE = "FARMHOUSE"
 
-
 class PossessionStatus(str, enum.Enum):
     READY_TO_MOVE = "READY_TO_MOVE"
     UNDER_CONSTRUCTION = "UNDER_CONSTRUCTION"
     NEW_LAUNCH = "NEW_LAUNCH"
     RESALE = "RESALE"
     UPCOMING = "UPCOMING"
-
 
 class PropertyPostStatus(str, enum.Enum):
     ACTIVE = "ACTIVE"
@@ -50,7 +43,6 @@ class PropertyPostStatus(str, enum.Enum):
     RENTED = "RENTED"
     WITHDRAWN = "WITHDRAWN"
     EXPIRED = "EXPIRED"
-
 
 class Facing(str, enum.Enum):
     NORTH = "NORTH"
@@ -62,29 +54,25 @@ class Facing(str, enum.Enum):
     SOUTH_EAST = "SOUTH_EAST"
     SOUTH_WEST = "SOUTH_WEST"
 
-
 class FurnishedStatus(str, enum.Enum):
     UNFURNISHED = "UNFURNISHED"
     SEMI_FURNISHED = "SEMI_FURNISHED"
     FULLY_FURNISHED = "FULLY_FURNISHED"
 
-
-# ===== MODEL =====
-
+# ===== MODELS =====
 class Property(Base):
     __tablename__ = "properties"
 
     id = Column(BigInteger, primary_key=True, index=True)
+    # owner_id = Column(BigInteger, index=True) # Who created this?
+    # owner_role = Column(String(50)) # "agent", "builder", "customer"
     title = Column(String(255), nullable=False)
     property_type = Column(Enum(PropertyType))
     city = Column(String(100), nullable=False)
     project_name = Column(String(255))
 
     possession_status = Column(Enum(PossessionStatus))
-    property_post_status = Column(
-        Enum(PropertyPostStatus),
-        default=PropertyPostStatus.ACTIVE
-    )
+    property_post_status = Column(Enum(PropertyPostStatus), default=PropertyPostStatus.ACTIVE)
 
     expected_price = Column(DECIMAL(15, 2))
     booking_amount = Column(DECIMAL(15, 2))
@@ -106,7 +94,7 @@ class Property(Base):
     longitude = Column(DECIMAL(11, 8))
     map_address = Column(Text)
 
-    property_features = Column(JSONEncodedList)  # storing JSON as text
+    property_features = Column(JSONEncodedList)
     facilities = Column(JSONEncodedList)
 
     property_age = Column(SmallInteger)
@@ -115,13 +103,18 @@ class Property(Base):
 
     facing = Column(Enum(Facing))
     furnished_status = Column(Enum(FurnishedStatus))
-
     parking_spaces = Column(SmallInteger, default=0)
-    ##image_ids: Optional[List[int]] = []
+
+class PropertyImage(Base):
+    __tablename__ = "property_images"
+    id = Column(BigInteger, primary_key=True, index=True)
+    property_id = Column(BigInteger, index=True, nullable=True)
+    image_url = Column(String(500), nullable=True)
+    image_data = Column(LargeBinary, nullable=True)
+    created_at = Column(TIMESTAMP, server_default=func.now())
 
 class Customer(Base):
     __tablename__ = "customers"
-
     id = Column(BigInteger, primary_key=True, index=True)
     full_name = Column(String(150))
     email = Column(String(150), unique=True, index=True)
@@ -130,10 +123,8 @@ class Customer(Base):
     city = Column(String(100))
     created_at = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
 
-
 class Agent(Base):
     __tablename__ = "agents"
-
     id = Column(BigInteger, primary_key=True, index=True)
     full_name = Column(String(150))
     email = Column(String(150), unique=True, index=True)
@@ -144,10 +135,8 @@ class Agent(Base):
     city = Column(String(100))
     created_at = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
 
-
 class Builder(Base):
     __tablename__ = "builders"
-
     id = Column(BigInteger, primary_key=True, index=True)
     company_name = Column(String(200))
     contact_person = Column(String(150))
@@ -160,9 +149,7 @@ class Builder(Base):
 
 class CurrentProperty(Base):
     __tablename__ = "current_properties"
-
     id = Column(BigInteger, primary_key=True, index=True)
-
     title = Column(String(255))
     bedrooms = Column(String(50))
     map_location = Column(String(255))
@@ -182,5 +169,15 @@ class CurrentProperty(Base):
     owner = Column(String(255))
     created_date = Column(DateTime)
     updated_date = Column(DateTime)
-
     created_at = Column(TIMESTAMP, server_default=func.now())
+
+class AWSConfig(Base):
+    __tablename__ = "aws_config"
+    id = Column(BigInteger, primary_key=True, index=True)
+    aws_access_key_id = Column(String(255), nullable=False)
+    aws_secret_access_key = Column(String(255), nullable=False)
+    aws_region = Column(String(100), nullable=False)
+    aws_s3_bucket = Column(String(255), nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())

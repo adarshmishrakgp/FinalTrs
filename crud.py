@@ -1,38 +1,43 @@
 from sqlalchemy.orm import Session
-from models import Property, CurrentProperty
-from schemas import PropertyCreate, PropertyImage, PropertyResponse, CurrentPropertyCreate
+from models import Property, CurrentProperty, PropertyImage
+from schemas import PropertyCreate, CurrentPropertyCreate, PropertyResponse
 from collections import defaultdict
-import json
 import io
 import zipfile
 from sqlalchemy import or_
 from typing import Optional
 
-
-def create_property(db: Session, property_data: PropertyCreate):
-    db_property = Property(**property_data.model_dump())
+def create_property(db: Session, property_data: PropertyCreate, owner_id: int, owner_role: str):
+    # Extract image_ids from the Pydantic model
+    prop_data_dict = property_data.model_dump(exclude={"image_ids"})
+    
+    # Add ownership data
+    # prop_data_dict["owner_id"] = owner_id
+    # prop_data_dict["owner_role"] = owner_role
+    
+    db_property = Property(**prop_data_dict)
     db.add(db_property)
     db.commit()
     db.refresh(db_property)
+
+    # Link Images to Property
+    if property_data.image_ids:
+        db.query(PropertyImage).filter(
+            PropertyImage.id.in_(property_data.image_ids)
+        ).update(
+            {"property_id": db_property.id}, 
+            synchronize_session=False
+        )
+        db.commit()
+
     return db_property
 
 def get_images_as_zip(db: Session, image_ids: list[int]) -> bytes:
-    """
-    Fetch images from DB and return zip bytes
-    """
-
-    images = (
-        db.query(PropertyImage)
-        .filter(PropertyImage.id.in_(image_ids))
-        .all()
-    )
-
+    images = db.query(PropertyImage).filter(PropertyImage.id.in_(image_ids)).all()
     if not images:
         return None
 
-    # create zip in memory
     zip_buffer = io.BytesIO()
-
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
         for img in images:
             if img.image_data:
@@ -42,59 +47,34 @@ def get_images_as_zip(db: Session, image_ids: list[int]) -> bytes:
     zip_buffer.seek(0)
     return zip_buffer.read()
 
-
-#def get_all_properties(db: Session, skip: int = 0, limit: int = 10):
- #   return db.query(Property).offset(skip).limit(limit).all()
-
-def get_all_properties(db: Session, skip: int = 0, limit: int = 10):
-    properties = db.query(Property).all()
+def _attach_images_to_properties(db: Session, properties: list[Property]) -> list[dict]:
     if not properties:
         return []
-    for p in properties:
-        if isinstance(p.property_features, str):
-            p.property_features = json.loads(p.property_features)
-
-        if isinstance(p.facilities, str):
-            p.facilities = json.loads(p.facilities)
+        
     property_ids = [p.id for p in properties]
-    # ✅ fetch all images in ONE query
+    
+    # Fetch image metadata
     images = (
         db.query(PropertyImage.property_id, PropertyImage.id)
         .filter(PropertyImage.property_id.in_(property_ids))
         .all()
     )
 
-    # ✅ group image ids by property
     image_map = defaultdict(list)
     for property_id, image_id in images:
         image_map[property_id].append(image_id)
 
-    # ✅ build response
     response = []
     for prop in properties:
         prop_dict = PropertyResponse.model_validate(prop).model_dump()
-
-        # attach image ids
         prop_dict["image_ids"] = image_map.get(prop.id, [])
-
         response.append(prop_dict)
 
     return response
 
-def create_propertyNew(db: Session, property_data: CurrentPropertyCreate):
-    db_obj = CurrentProperty(**property_data.model_dump(exclude_unset=True))
-    db.add(db_obj)
-    db.commit()
-    db.refresh(db_obj)
-    return db_obj
-
-
-def list_propertiesNew(db: Session, skip: int = 0, limit: int = 50):
-    return db.query(CurrentProperty).offset(skip).limit(limit).all()
-
-
-def get_property(db: Session, property_id: int):
-    return db.query(CurrentProperty).filter(CurrentProperty.id == property_id).first()
+def get_all_properties(db: Session, skip: int = 0, limit: int = 10):
+    properties = db.query(Property).offset(skip).limit(limit).all()
+    return _attach_images_to_properties(db, properties)
 
 def search_properties(
     db: Session,
@@ -112,7 +92,6 @@ def search_properties(
 ):
     query = db.query(Property)
 
-    # Handle the multi-field search bar
     if search_query:
         search_format = f"%{search_query}%"
         query = query.filter(
@@ -124,22 +103,28 @@ def search_properties(
             )
         )
 
-    # Handle the specific dropdown filters
-    if property_type:
-        query = query.filter(Property.property_type == property_type)
-    if min_price is not None:
-        query = query.filter(Property.expected_price >= min_price)
-    if max_price is not None:
-        query = query.filter(Property.expected_price <= max_price)
-    if bedrooms is not None:
-        query = query.filter(Property.bedrooms == bedrooms)
-    if bathrooms is not None:
-        query = query.filter(Property.bathrooms == bathrooms)
-    if property_post_status:
-        query = query.filter(Property.property_post_status == property_post_status)
-    if possession_status:
-        query = query.filter(Property.possession_status == possession_status)
-    if is_price_negotiable is not None:
-        query = query.filter(Property.is_price_negotiable == is_price_negotiable)
+    if property_type: query = query.filter(Property.property_type == property_type)
+    if min_price is not None: query = query.filter(Property.expected_price >= min_price)
+    if max_price is not None: query = query.filter(Property.expected_price <= max_price)
+    if bedrooms is not None: query = query.filter(Property.bedrooms == bedrooms)
+    if bathrooms is not None: query = query.filter(Property.bathrooms == bathrooms)
+    if property_post_status: query = query.filter(Property.property_post_status == property_post_status)
+    if possession_status: query = query.filter(Property.possession_status == possession_status)
+    if is_price_negotiable is not None: query = query.filter(Property.is_price_negotiable == is_price_negotiable)
 
-    return query.offset(skip).limit(limit).all()
+    properties = query.offset(skip).limit(limit).all()
+    return _attach_images_to_properties(db, properties)
+
+
+def create_current_property(db: Session, property_data: CurrentPropertyCreate):
+    db_obj = CurrentProperty(**property_data.model_dump(exclude_unset=True))
+    db.add(db_obj)
+    db.commit()
+    db.refresh(db_obj)
+    return db_obj
+
+def list_current_properties(db: Session, skip: int = 0, limit: int = 50):
+    return db.query(CurrentProperty).offset(skip).limit(limit).all()
+
+def get_property(db: Session, property_id: int):
+    return db.query(CurrentProperty).filter(CurrentProperty.id == property_id).first()
