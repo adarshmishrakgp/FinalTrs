@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from models import Property, PropertyImage
-from schemas import PropertyCreate, PropertyResponse
+from schemas import PropertyCreate, PropertyResponse,ProfileUpdate,BuyRequirementCreate,ContactOwner
+from models import Customer, BuyRequirement, Favourite, Enquiry
 from collections import defaultdict
 import io
 import zipfile
@@ -104,3 +105,57 @@ def search_properties(
 
     properties = query.offset(skip).limit(limit).all()
     return _attach_images_to_properties(db, properties)
+
+# --- CUSTOMER PROFILE ---
+def update_customer_profile(db: Session, customer_id: int, profile_data: ProfileUpdate):
+    db_customer = db.query(Customer).filter(Customer.id == customer_id).first()
+    if db_customer:
+        db_customer.full_name = profile_data.full_name
+        db_customer.phone = profile_data.phone
+        db_customer.city = profile_data.city
+        db.commit()
+        db.refresh(db_customer)
+    return db_customer
+
+# --- BUY REQUIREMENTS ---
+def create_buy_requirement(db: Session, req_data: BuyRequirementCreate, customer_id: int):
+    db_req = BuyRequirement(**req_data.model_dump(), customer_id=customer_id)
+    db.add(db_req)
+    db.commit()
+    db.refresh(db_req)
+    return db_req
+
+def get_customer_requirements(db: Session, customer_id: int):
+    return db.query(BuyRequirement).filter(BuyRequirement.customer_id == customer_id).all()
+
+def delete_buy_requirement(db: Session, req_id: int, customer_id: int):
+    db_req = db.query(BuyRequirement).filter(BuyRequirement.id == req_id, BuyRequirement.customer_id == customer_id).first()
+    if db_req:
+        db.delete(db_req)
+        db.commit()
+        return True
+    return False
+
+# --- FAVOURITES ---
+def add_favourite(db: Session, property_id: int, customer_id: int):
+    existing = db.query(Favourite).filter(Favourite.property_id == property_id, Favourite.customer_id == customer_id).first()
+    if existing:
+        return existing
+        
+    new_fav = Favourite(property_id=property_id, customer_id=customer_id)
+    db.add(new_fav)
+    db.commit()
+    return new_fav
+
+def get_customer_favourites(db: Session, customer_id: int):
+    favs = db.query(Favourite).filter(Favourite.customer_id == customer_id).all()
+    property_ids = [fav.property_id for fav in favs]
+    properties = db.query(Property).filter(Property.id.in_(property_ids)).all()
+    return _attach_images_to_properties(db, properties)
+
+# --- ENQUIRIES ---
+def create_enquiry(db: Session, data: ContactOwner, customer_id: int):
+    new_enquiry = Enquiry(customer_id=customer_id, property_id=data.property_id, message=data.message)
+    db.add(new_enquiry)
+    db.commit()
+    return new_enquiry

@@ -82,3 +82,31 @@ class AWSConfig(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+
+class BuyRequirement(Base):
+    __tablename__ = "buy_requirements"
+    id = Column(BigInteger, primary_key=True, index=True)
+    customer_id = Column(BigInteger, index=True)
+    city = Column(String(100))
+    property_type = Column(String(100))
+    min_price = Column(DECIMAL(15, 2), nullable=True)
+    max_price = Column(DECIMAL(15, 2), nullable=True)
+    min_carpet_area = Column(DECIMAL(15, 2), nullable=True)
+    max_carpet_area = Column(DECIMAL(15, 2), nullable=True)
+    possession_status = Column(String(100))
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+class Favourite(Base):
+    __tablename__ = "favourites"
+    id = Column(BigInteger, primary_key=True, index=True)
+    customer_id = Column(BigInteger, index=True)
+    property_id = Column(BigInteger, index=True)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+class Enquiry(Base):
+    __tablename__ = "enquiries"
+    id = Column(BigInteger, primary_key=True, index=True)
+    customer_id = Column(BigInteger, index=True)
+    property_id = Column(BigInteger, index=True)
+    message = Column(Text)
+    created_at = Column(TIMESTAMP, server_default=func.now())

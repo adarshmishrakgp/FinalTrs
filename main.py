@@ -335,3 +335,62 @@ def export_properties_to_csv(db: Session = Depends(get_db)):
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=updated_master_sheet.csv"}
     )
+
+def get_current_customer(current_user = Depends(get_current_user)):
+    if getattr(current_user, "role", None) != "customer":
+        raise HTTPException(status_code=403, detail="Customer access only")
+    return current_user
+
+# ==========================================
+# 👤 CUSTOMER API ROUTES
+# ==========================================
+
+# 1. Get Profile
+@app.get("/api/customer/profile", response_model=schemas.UserResponse)
+def get_profile(user = Depends(get_current_customer)):
+    return user
+
+# 2. Update Profile
+@app.put("/api/customer/profile")
+def update_profile(data: schemas.ProfileUpdate, db: Session = Depends(get_db), user = Depends(get_current_customer)):
+    updated_user = crud.update_customer_profile(db, user.id, data)
+    return {"message": "Profile updated", "data": updated_user}
+
+# 3. Post Buy Requirement
+@app.post("/api/customer/buy-requirements", response_model=schemas.BuyRequirementResponse)
+def post_requirement(data: schemas.BuyRequirementCreate, db: Session = Depends(get_db), user = Depends(get_current_customer)):
+    return crud.create_buy_requirement(db, data, user.id)
+
+# 4. Get My Requirements
+@app.get("/api/customer/buy-requirements", response_model=list[schemas.BuyRequirementResponse])
+def get_my_requirements(db: Session = Depends(get_db), user = Depends(get_current_customer)):
+    return crud.get_customer_requirements(db, user.id)
+
+# 5. Delete Requirement
+@app.delete("/api/customer/buy-requirements/{req_id}")
+def delete_requirement(req_id: int, db: Session = Depends(get_db), user = Depends(get_current_customer)):
+    success = crud.delete_buy_requirement(db, req_id, user.id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Requirement not found")
+    return {"message": "Requirement deleted"}
+
+# 6. Add Favourite
+@app.post("/api/customer/favourites/{property_id}")
+def add_favourite(property_id: int, db: Session = Depends(get_db), user = Depends(get_current_customer)):
+    crud.add_favourite(db, property_id, user.id)
+    return {"message": "Property added to favourite"}
+
+# 7. Get Favourite Properties
+@app.get("/api/customer/favourites", response_model=list[schemas.PropertyResponse])
+def get_favourites(db: Session = Depends(get_db), user = Depends(get_current_customer)):
+    return crud.get_customer_favourites(db, user.id)
+
+# 8. Contact Owner
+@app.post("/api/customer/contact-owner")
+def contact_owner(data: schemas.ContactOwner, db: Session = Depends(get_db), user = Depends(get_current_customer)):
+    crud.create_enquiry(db, data, user.id)
+    return {
+        "message": "Enquiry sent successfully",
+        "property_id": data.property_id,
+        "customer_id": user.id
+    }

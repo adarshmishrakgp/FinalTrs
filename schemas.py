@@ -76,3 +76,26 @@ class Token(BaseModel):
     access_token: str
     token_type: str
     role: str
+
+class ProfileUpdate(BaseModel):
+    full_name: str
+    phone: str
+    city: Optional[str] = None
+
+class BuyRequirementCreate(BaseModel):
+    city: str
+    property_type: str
+    min_price: Optional[float] = None
+    max_price: Optional[float] = None
+    min_carpet_area: Optional[float] = None
+    max_carpet_area: Optional[float] = None
+    possession_status: str
+
+class BuyRequirementResponse(BuyRequirementCreate):
+    id: int
+    customer_id: int
+    model_config = ConfigDict(from_attributes=True)
+
+class ContactOwner(BaseModel):
+    property_id: int
+    message: str
