@@ -1,110 +1,34 @@
-from sqlalchemy import Column, BigInteger, String, Text, DECIMAL, Integer, DateTime, TIMESTAMP, func, Enum, Boolean, SmallInteger, text, TypeDecorator, TEXT, LargeBinary
+from sqlalchemy import Column, BigInteger, String, Text, DECIMAL, Integer, DateTime, TIMESTAMP, func, LargeBinary, Boolean
 from database import Base
-import enum
-import json
 
-class JSONEncodedList(TypeDecorator):
-    impl = TEXT
-
-    def process_bind_param(self, value, dialect):
-        if value is None:
-            return None
-        return json.dumps(value)
-
-    def process_result_value(self, value, dialect):
-        if value is None:
-            return None
-        return json.loads(value)
-
-# ===== ENUMS =====
-class PropertyType(str, enum.Enum):
-    APARTMENT = "APARTMENT"
-    VILLA = "VILLA"
-    HOUSE = "HOUSE"
-    PLOT = "PLOT"
-    OFFICE = "OFFICE"
-    SHOP = "SHOP"
-    WAREHOUSE = "WAREHOUSE"
-    STUDIO = "STUDIO"
-    PENTHOUSE = "PENTHOUSE"
-    FARMHOUSE = "FARMHOUSE"
-
-class PossessionStatus(str, enum.Enum):
-    READY_TO_MOVE = "READY_TO_MOVE"
-    UNDER_CONSTRUCTION = "UNDER_CONSTRUCTION"
-    NEW_LAUNCH = "NEW_LAUNCH"
-    RESALE = "RESALE"
-    UPCOMING = "UPCOMING"
-
-class PropertyPostStatus(str, enum.Enum):
-    ACTIVE = "ACTIVE"
-    INACTIVE = "INACTIVE"
-    SOLD = "SOLD"
-    RENTED = "RENTED"
-    WITHDRAWN = "WITHDRAWN"
-    EXPIRED = "EXPIRED"
-
-class Facing(str, enum.Enum):
-    NORTH = "NORTH"
-    SOUTH = "SOUTH"
-    EAST = "EAST"
-    WEST = "WEST"
-    NORTH_EAST = "NORTH_EAST"
-    NORTH_WEST = "NORTH_WEST"
-    SOUTH_EAST = "SOUTH_EAST"
-    SOUTH_WEST = "SOUTH_WEST"
-
-class FurnishedStatus(str, enum.Enum):
-    UNFURNISHED = "UNFURNISHED"
-    SEMI_FURNISHED = "SEMI_FURNISHED"
-    FULLY_FURNISHED = "FULLY_FURNISHED"
-
-# ===== MODELS =====
+# ===== UNIFIED PROPERTY MODEL (Matches Master Sheet) =====
 class Property(Base):
     __tablename__ = "properties"
 
     id = Column(BigInteger, primary_key=True, index=True)
-    # owner_id = Column(BigInteger, index=True) # Who created this?
-    # owner_role = Column(String(50)) # "agent", "builder", "customer"
+    
     title = Column(String(255), nullable=False)
-    property_type = Column(Enum(PropertyType))
-    city = Column(String(100), nullable=False)
-    project_name = Column(String(255))
+    bedrooms = Column(Integer, nullable=True)
+    map_location = Column(String(255), nullable=True)
+    agent_email = Column(String(255), nullable=True)
+    property_type = Column(String(100), nullable=True)  # e.g., "Plot", "Apartment"
+    image = Column(Text, nullable=True)                 # For Google Drive links from CSV
+    description = Column(Text, nullable=True)
+    price = Column(DECIMAL(15, 2), nullable=True)
+    gallery = Column(Text, nullable=True)
+    year_built = Column(Integer, nullable=True)
+    status = Column(String(100), nullable=True)         # e.g., "Sell", "Rent"
+    agent_name = Column(String(255), nullable=True)
+    bathrooms = Column(Integer, nullable=True)
+    agent_phone = Column(String(50), nullable=True)
+    size = Column(DECIMAL(15, 2), nullable=True)        # Represents square footage/area
+    floors = Column(Integer, nullable=True)
+    owner = Column(String(255), nullable=True)
 
-    possession_status = Column(Enum(PossessionStatus))
-    property_post_status = Column(Enum(PropertyPostStatus), default=PropertyPostStatus.ACTIVE)
+    created_date = Column(DateTime, default=func.now())
+    updated_date = Column(DateTime, default=func.now(), onupdate=func.now())
 
-    expected_price = Column(DECIMAL(15, 2))
-    booking_amount = Column(DECIMAL(15, 2))
-    is_price_negotiable = Column(Boolean, default=False)
-
-    carpet_area = Column(DECIMAL(8, 2))
-    super_area = Column(DECIMAL(8, 2))
-
-    bedrooms = Column(SmallInteger)
-    bathrooms = Column(SmallInteger)
-    balconies = Column(SmallInteger)
-
-    rera_id = Column(String(50))
-    builder_name = Column(String(255))
-    builder_logo = Column(String(500))
-
-    nearby_landmarks = Column(Text)
-    latitude = Column(DECIMAL(10, 8))
-    longitude = Column(DECIMAL(11, 8))
-    map_address = Column(Text)
-
-    property_features = Column(JSONEncodedList)
-    facilities = Column(JSONEncodedList)
-
-    property_age = Column(SmallInteger)
-    floor_number = Column(SmallInteger)
-    total_floors = Column(SmallInteger)
-
-    facing = Column(Enum(Facing))
-    furnished_status = Column(Enum(FurnishedStatus))
-    parking_spaces = Column(SmallInteger, default=0)
-
+# ===== KEPT FOR S3 IMAGE UPLOADS =====
 class PropertyImage(Base):
     __tablename__ = "property_images"
     id = Column(BigInteger, primary_key=True, index=True)
@@ -113,6 +37,7 @@ class PropertyImage(Base):
     image_data = Column(LargeBinary, nullable=True)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
+# ===== USERS =====
 class Customer(Base):
     __tablename__ = "customers"
     id = Column(BigInteger, primary_key=True, index=True)
@@ -121,7 +46,7 @@ class Customer(Base):
     phone = Column(String(20), unique=True)
     password_hash = Column(String(255))
     city = Column(String(100))
-    created_at = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
+    created_at = Column(TIMESTAMP, server_default=func.now())
 
 class Agent(Base):
     __tablename__ = "agents"
@@ -133,7 +58,7 @@ class Agent(Base):
     rera_number = Column(String(100))
     agency_name = Column(String(150))
     city = Column(String(100))
-    created_at = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
+    created_at = Column(TIMESTAMP, server_default=func.now())
 
 class Builder(Base):
     __tablename__ = "builders"
@@ -145,30 +70,6 @@ class Builder(Base):
     password_hash = Column(String(255))
     rera_number = Column(String(100))
     city = Column(String(100))
-    created_at = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
-
-class CurrentProperty(Base):
-    __tablename__ = "current_properties"
-    id = Column(BigInteger, primary_key=True, index=True)
-    title = Column(String(255))
-    bedrooms = Column(String(50))
-    map_location = Column(String(255))
-    agent_email = Column(String(255))
-    property_type = Column(String(50))
-    image = Column(Text)
-    description = Column(Text)
-    price = Column(DECIMAL(15, 2))
-    gallery = Column(Text)
-    year_built = Column(Integer)
-    status = Column(String(50))
-    agent_name = Column(String(255))
-    bathrooms = Column(Integer)
-    agent_phone = Column(String(50))
-    size = Column(DECIMAL(12, 2))
-    floors = Column(Integer)
-    owner = Column(String(255))
-    created_date = Column(DateTime)
-    updated_date = Column(DateTime)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
 class AWSConfig(Base):

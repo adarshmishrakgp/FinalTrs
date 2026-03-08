@@ -1,26 +1,22 @@
 from sqlalchemy.orm import Session
-from models import Property, CurrentProperty, PropertyImage
-from schemas import PropertyCreate, CurrentPropertyCreate, PropertyResponse
+from models import Property, PropertyImage
+from schemas import PropertyCreate, PropertyResponse
 from collections import defaultdict
 import io
 import zipfile
 from sqlalchemy import or_
 from typing import Optional
 
-def create_property(db: Session, property_data: PropertyCreate, owner_id: int, owner_role: str):
+def create_property(db: Session, property_data: PropertyCreate):
     # Extract image_ids from the Pydantic model
     prop_data_dict = property_data.model_dump(exclude={"image_ids"})
-    
-    # Add ownership data
-    # prop_data_dict["owner_id"] = owner_id
-    # prop_data_dict["owner_role"] = owner_role
     
     db_property = Property(**prop_data_dict)
     db.add(db_property)
     db.commit()
     db.refresh(db_property)
 
-    # Link Images to Property
+    # Link Images to Property if any were uploaded to S3
     if property_data.image_ids:
         db.query(PropertyImage).filter(
             PropertyImage.id.in_(property_data.image_ids)
@@ -83,10 +79,7 @@ def search_properties(
     min_price: Optional[float] = None,
     max_price: Optional[float] = None,
     bedrooms: Optional[int] = None,
-    bathrooms: Optional[int] = None,
-    property_post_status: Optional[str] = None,
-    possession_status: Optional[str] = None,
-    is_price_negotiable: Optional[bool] = None,
+    status: Optional[str] = None,
     skip: int = 0,
     limit: int = 10
 ):
@@ -97,34 +90,17 @@ def search_properties(
         query = query.filter(
             or_(
                 Property.title.ilike(search_format),
-                Property.city.ilike(search_format),
-                Property.project_name.ilike(search_format),
-                Property.builder_name.ilike(search_format)
+                Property.map_location.ilike(search_format),
+                Property.description.ilike(search_format),
+                Property.agent_name.ilike(search_format)
             )
         )
 
-    if property_type: query = query.filter(Property.property_type == property_type)
-    if min_price is not None: query = query.filter(Property.expected_price >= min_price)
-    if max_price is not None: query = query.filter(Property.expected_price <= max_price)
+    if property_type: query = query.filter(Property.property_type.ilike(property_type))
+    if min_price is not None: query = query.filter(Property.price >= min_price)
+    if max_price is not None: query = query.filter(Property.price <= max_price)
     if bedrooms is not None: query = query.filter(Property.bedrooms == bedrooms)
-    if bathrooms is not None: query = query.filter(Property.bathrooms == bathrooms)
-    if property_post_status: query = query.filter(Property.property_post_status == property_post_status)
-    if possession_status: query = query.filter(Property.possession_status == possession_status)
-    if is_price_negotiable is not None: query = query.filter(Property.is_price_negotiable == is_price_negotiable)
+    if status: query = query.filter(Property.status.ilike(status))
 
     properties = query.offset(skip).limit(limit).all()
     return _attach_images_to_properties(db, properties)
-
-
-def create_current_property(db: Session, property_data: CurrentPropertyCreate):
-    db_obj = CurrentProperty(**property_data.model_dump(exclude_unset=True))
-    db.add(db_obj)
-    db.commit()
-    db.refresh(db_obj)
-    return db_obj
-
-def list_current_properties(db: Session, skip: int = 0, limit: int = 50):
-    return db.query(CurrentProperty).offset(skip).limit(limit).all()
-
-def get_property(db: Session, property_id: int):
-    return db.query(CurrentProperty).filter(CurrentProperty.id == property_id).first()

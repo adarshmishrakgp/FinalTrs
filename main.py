@@ -7,7 +7,9 @@ from datetime import timedelta
 from typing import List, Optional
 import io
 import logging
-
+import csv
+import io
+from fastapi.responses import StreamingResponse
 from database import get_db, engine, Base
 import models
 import schemas
@@ -21,7 +23,6 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Property API")
 
-# Allow requests from any frontend origin
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -54,12 +55,11 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
         
-    user.role = role # Dynamically attach role
+    user.role = role 
     return user
 
 @app.post("/login", response_model=schemas.Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    # Standardised for Swagger UI and generic frontend use
     user = db.query(models.Customer).filter(models.Customer.email == form_data.username).first()
     role = "customer"
     
@@ -83,7 +83,6 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 
 @app.get("/users/me", response_model=schemas.UserResponse)
 def get_current_user_profile(current_user = Depends(get_current_user)):
-    """Fetch the profile of the currently logged in user"""
     return {
         "id": current_user.id,
         "email": current_user.email,
@@ -118,18 +117,11 @@ def create_property(
     current_user = Depends(get_current_user)
 ):
     try:
-        # Check permissions
         if current_user.role not in ["agent", "builder"]:
             raise HTTPException(status_code=403, detail="Customers cannot create properties.")
             
-        new_property = crud.create_property(
-            db=db, 
-            property_data=request, 
-            # owner_id=current_user.id,
-            # owner_role=current_user.role
-        )
+        new_property = crud.create_property(db=db, property_data=request)
         
-        # Format for response
         prop_dict = schemas.PropertyResponse.model_validate(new_property).model_dump()
         prop_dict["image_ids"] = request.image_ids
         return prop_dict
@@ -147,15 +139,12 @@ def get_properties(skip: int = 0, limit: int = 10, db: Session = Depends(get_db)
 
 @app.get("/properties/search", response_model=list[schemas.PropertyResponse])
 def search_properties_api(
-    search_query: Optional[str] = Query(None, description="Search by title, city, project name or builder name"),
+    search_query: Optional[str] = Query(None, description="Search by title, location, description, or agent"),
     property_type: Optional[str] = None,
     min_price: Optional[float] = None,
     max_price: Optional[float] = None,
     bedrooms: Optional[int] = None,
-    bathrooms: Optional[int] = None,          
-    property_post_status: Optional[str] = None,
-    possession_status: Optional[str] = None,   
-    is_price_negotiable: Optional[bool] = None,
+    status: Optional[str] = Query(None, description="e.g., Sell, Rent"),
     skip: int = 0,
     limit: int = 10,
     db: Session = Depends(get_db)
@@ -163,9 +152,7 @@ def search_properties_api(
     return crud.search_properties(
         db=db, search_query=search_query, property_type=property_type, 
         min_price=min_price, max_price=max_price, bedrooms=bedrooms, 
-        bathrooms=bathrooms, property_post_status=property_post_status,
-        possession_status=possession_status, is_price_negotiable=is_price_negotiable,
-        skip=skip, limit=limit
+        status=status, skip=skip, limit=limit
     )
 
 @app.get("/properties/{property_id}", response_model=schemas.PropertyResponse)
@@ -174,7 +161,6 @@ def get_property_by_id(property_id: int, db: Session = Depends(get_db)):
     if not property_obj:
         raise HTTPException(status_code=404, detail="Property not found")
         
-    # Get associated images
     images = db.query(models.PropertyImage).filter(models.PropertyImage.property_id == property_id).all()
     image_ids = [img.id for img in images]
     
@@ -190,14 +176,9 @@ async def upload_image(
     image: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    """ Uploads an image to S3 AND registers it in the database to get an ID """
     url = upload_file_to_s3(image, db)
     
-    # Save to database to generate an ID
-    db_image = models.PropertyImage(
-        image_url=url,
-        # Leaving image_data blank to save DB space since it's on S3
-    )
+    db_image = models.PropertyImage(image_url=url)
     db.add(db_image)
     db.commit()
     db.refresh(db_image)
@@ -205,7 +186,7 @@ async def upload_image(
     return {
         "message": "Image uploaded successfully",
         "image_url": url,
-        "image_id": db_image.id # Frontend uses this to link to the property!
+        "image_id": db_image.id 
     }
 
 @app.post("/property-images/download")
@@ -227,12 +208,130 @@ def download_property_images(
     )
 
 # ==========================================
-# 📋 LEGACY / CURRENT PROPERTIES
+# 📊 MASTER SHEET IMPORT / EXPORT
 # ==========================================
-@app.post("/current-properties/create", response_model=schemas.CurrentPropertyResponse)
-def create_current_property_api(property_data: schemas.CurrentPropertyCreate, db: Session = Depends(get_db)):
-    return crud.create_current_property(db, property_data)
 
-@app.get("/current-properties", response_model=list[schemas.CurrentPropertyResponse])
-def list_current_properties_api(skip: int = 0, limit: int = 50, db: Session = Depends(get_db)):
-    return crud.list_current_properties(db, skip, limit)
+@app.post("/properties/import")
+async def import_properties_from_csv(
+    file: UploadFile = File(...), 
+    db: Session = Depends(get_db),
+    # current_user = Depends(get_current_user) # Uncomment to secure this route
+):
+    """
+    Upload your Master Sheet (CSV format). 
+    This reads the file and extracts all details into the database.
+    """
+    if not file.filename.endswith('.csv'):
+        raise HTTPException(status_code=400, detail="Only CSV files are allowed. Please save your Excel sheet as a CSV.")
+
+    contents = await file.read()
+    decoded = contents.decode('utf-8')
+    reader = csv.DictReader(io.StringIO(decoded))
+
+    imported_count = 0
+    
+    for row in reader:
+        # ✅ FIX: Safely remove commas and handle conversions
+        def parse_int(val):
+            if val and str(val).strip():
+                clean_val = str(val).replace(',', '').strip()
+                try:
+                    return int(float(clean_val)) # float() first in case it's something like '1.0'
+                except ValueError:
+                    return None
+            return None
+            
+        def parse_float(val):
+            if val and str(val).strip():
+                clean_val = str(val).replace(',', '').strip()
+                try:
+                    return float(clean_val)
+                except ValueError:
+                    return None
+            return None
+
+        # Map the CSV columns exactly to the Property model
+        new_property = models.Property(
+            title=row.get("Title", "Untitled"),
+            bedrooms=parse_int(row.get("Bedrooms")),
+            map_location=row.get("Map Location"),
+            agent_email=row.get("Agent Email"),
+            property_type=row.get("Property Type"),
+            image=row.get("Image"),
+            description=row.get("Description"),
+            price=parse_float(row.get("Price")),
+            gallery=row.get("Gallery"),
+            year_built=parse_int(row.get("Year Built")),
+            status=row.get("Status"),
+            agent_name=row.get("Agent Name"),
+            bathrooms=parse_int(row.get("Bathrooms")),
+            agent_phone=row.get("Agent Phone"),
+            size=parse_float(row.get("Size")),
+            floors=parse_int(row.get("Floors")),
+            owner=row.get("Owner")
+        )
+        db.add(new_property)
+        imported_count += 1
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error during import: {str(e)}")
+
+    return {"message": f"Successfully imported {imported_count} properties from the Master Sheet."}
+
+
+@app.get("/properties/export")
+def export_properties_to_csv(db: Session = Depends(get_db)):
+    """
+    Downloads the current live database back into a Master Sheet (CSV).
+    Any new properties added via the app will be included here.
+    """
+    properties = db.query(models.Property).all()
+
+    # Create an in-memory string buffer
+    output = io.StringIO()
+    
+    # Define the exact headers matching your Master Sheet
+    fieldnames = [
+        "Title", "Bedrooms", "Map Location", "Agent Email", "Property Type", 
+        "Image", "Description", "Price", "Gallery", "Year Built", 
+        "Status", "Agent Name", "Bathrooms", "Agent Phone", "Size", 
+        "Floors", "ID", "Created Date", "Updated Date", "Owner"
+    ]
+    
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+
+    for prop in properties:
+        writer.writerow({
+            "Title": prop.title,
+            "Bedrooms": prop.bedrooms,
+            "Map Location": prop.map_location,
+            "Agent Email": prop.agent_email,
+            "Property Type": prop.property_type,
+            "Image": prop.image,
+            "Description": prop.description,
+            "Price": prop.price,
+            "Gallery": prop.gallery,
+            "Year Built": prop.year_built,
+            "Status": prop.status,
+            "Agent Name": prop.agent_name,
+            "Bathrooms": prop.bathrooms,
+            "Agent Phone": prop.agent_phone,
+            "Size": prop.size,
+            "Floors": prop.floors,
+            "ID": prop.id,
+            "Created Date": prop.created_date.strftime("%Y-%m-%d %H:%M:%S") if prop.created_date else "",
+            "Updated Date": prop.updated_date.strftime("%Y-%m-%d %H:%M:%S") if prop.updated_date else "",
+            "Owner": prop.owner
+        })
+
+    output.seek(0)
+    
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=updated_master_sheet.csv"}
+    )
