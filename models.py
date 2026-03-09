@@ -23,6 +23,7 @@ class Property(Base):
     agent_phone = Column(String(50), nullable=True)
     size = Column(DECIMAL(15, 2), nullable=True)        # Represents square footage/area
     floors = Column(Integer, nullable=True)
+    is_approved = Column(Boolean, default=False)
     owner = Column(String(255), nullable=True)
 
     created_date = Column(DateTime, default=func.now())

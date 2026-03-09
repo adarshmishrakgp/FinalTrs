@@ -25,6 +25,7 @@ class PropertyCreate(BaseModel):
 
 class PropertyResponse(PropertyCreate):
     id: int 
+    is_approved: bool = False 
     created_date: Optional[datetime] = None
     updated_date: Optional[datetime] = None
     image_ids: List[int] = Field(default_factory=list)

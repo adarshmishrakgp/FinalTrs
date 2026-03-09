@@ -177,10 +177,8 @@ def create_property(
     current_user = Depends(get_current_user)
 ):
     try:
-        if current_user.role not in ["agent", "builder"]:
-            raise HTTPException(status_code=403, detail="Customers cannot create properties.")
-            
-        new_property = crud.create_property(db=db, property_data=request)
+        auto_approve = current_user.role in ["agent", "builder"]    
+        new_property = crud.create_property(db=db, property_data=request,is_approved=auto_approve)
         
         prop_dict = schemas.PropertyResponse.model_validate(new_property).model_dump()
         prop_dict["image_ids"] = request.image_ids
@@ -215,57 +213,16 @@ def search_properties_api(
         status=status, skip=skip, limit=limit
     )
 
-@app.get("/properties/{property_id}", response_model=schemas.PropertyResponse)
-def get_property_by_id(property_id: int, db: Session = Depends(get_db)):
-    property_obj = db.query(models.Property).filter(models.Property.id == property_id).first()
-    if not property_obj:
-        raise HTTPException(status_code=404, detail="Property not found")
-        
-    images = db.query(models.PropertyImage).filter(models.PropertyImage.property_id == property_id).all()
-    image_ids = [img.id for img in images]
-    
-    response_dict = schemas.PropertyResponse.model_validate(property_obj).model_dump()
-    response_dict["image_ids"] = image_ids
-    return response_dict
-
-# ==========================================
-# 🖼️ IMAGES
-# ==========================================
-@app.post("/upload-image")
-async def upload_image(
-    image: UploadFile = File(...),
+@app.get("/properties/pending", response_model=list[schemas.PropertyResponse])
+def get_pending_properties_api(
+    skip: int = 0, 
+    limit: int = 10, 
     db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
 ):
-    url = upload_file_to_s3(image, db)
-    
-    db_image = models.PropertyImage(image_url=url)
-    db.add(db_image)
-    db.commit()
-    db.refresh(db_image)
-
-    return {
-        "message": "Image uploaded successfully",
-        "image_url": url,
-        "image_id": db_image.id 
-    }
-
-@app.post("/property-images/download")
-def download_property_images(
-    request: schemas.ImageDownloadRequest,
-    db: Session = Depends(get_db),
-):
-    if not request.image_ids:
-        raise HTTPException(status_code=400, detail="image_ids required")
-
-    zip_bytes = crud.get_images_as_zip(db, request.image_ids)
-    if not zip_bytes:
-        raise HTTPException(status_code=404, detail="Images not found")
-
-    return StreamingResponse(
-        io.BytesIO(zip_bytes),
-        media_type="application/zip",
-        headers={"Content-Disposition": "attachment; filename=property_images.zip"},
-    )
+    if current_user.role != "agent":
+        raise HTTPException(status_code=403, detail="Only agents can view the pending approval queue.")
+    return crud.get_pending_properties(db=db, skip=skip, limit=limit)
 
 # ==========================================
 # 📊 MASTER SHEET IMPORT / EXPORT
@@ -395,6 +352,77 @@ def export_properties_to_csv(db: Session = Depends(get_db)):
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=updated_master_sheet.csv"}
     )
+
+@app.get("/properties/{property_id}", response_model=schemas.PropertyResponse)
+def get_property_by_id(property_id: int, db: Session = Depends(get_db)):
+    property_obj = db.query(models.Property).filter(models.Property.id == property_id).first()
+    if not property_obj:
+        raise HTTPException(status_code=404, detail="Property not found")
+        
+    images = db.query(models.PropertyImage).filter(models.PropertyImage.property_id == property_id).all()
+    image_ids = [img.id for img in images]
+    
+    response_dict = schemas.PropertyResponse.model_validate(property_obj).model_dump()
+    response_dict["image_ids"] = image_ids
+    return response_dict
+
+@app.put("/properties/{property_id}/approve")
+def approve_property(
+    property_id: int, 
+    db: Session = Depends(get_db), 
+    current_user = Depends(get_current_user)
+):
+    if current_user.role != "agent":
+        raise HTTPException(status_code=403, detail="Only agents can approve properties.")
+    
+    prop = db.query(models.Property).filter(models.Property.id == property_id).first()
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+        
+    prop.is_approved = True
+    db.commit()
+    
+    return {"message": f"Property '{prop.title}' has been approved and is now live!"}
+
+# ==========================================
+# 🖼️ IMAGES
+# ==========================================
+@app.post("/upload-image")
+async def upload_image(
+    image: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    url = upload_file_to_s3(image, db)
+    
+    db_image = models.PropertyImage(image_url=url)
+    db.add(db_image)
+    db.commit()
+    db.refresh(db_image)
+
+    return {
+        "message": "Image uploaded successfully",
+        "image_url": url,
+        "image_id": db_image.id 
+    }
+
+@app.post("/property-images/download")
+def download_property_images(
+    request: schemas.ImageDownloadRequest,
+    db: Session = Depends(get_db),
+):
+    if not request.image_ids:
+        raise HTTPException(status_code=400, detail="image_ids required")
+
+    zip_bytes = crud.get_images_as_zip(db, request.image_ids)
+    if not zip_bytes:
+        raise HTTPException(status_code=404, detail="Images not found")
+
+    return StreamingResponse(
+        io.BytesIO(zip_bytes),
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=property_images.zip"},
+    )
+
 
 def get_current_customer(current_user = Depends(get_current_user)):
     if getattr(current_user, "role", None) != "customer":

@@ -8,11 +8,11 @@ import zipfile
 from sqlalchemy import or_
 from typing import Optional
 
-def create_property(db: Session, property_data: PropertyCreate):
+def create_property(db: Session, property_data: PropertyCreate,is_approved: bool = False):
     # Extract image_ids from the Pydantic model
     prop_data_dict = property_data.model_dump(exclude={"image_ids"})
     
-    db_property = Property(**prop_data_dict)
+    db_property = Property(**prop_data_dict,is_approved=is_approved)
     db.add(db_property)
     db.commit()
     db.refresh(db_property)
@@ -70,7 +70,7 @@ def _attach_images_to_properties(db: Session, properties: list[Property]) -> lis
     return response
 
 def get_all_properties(db: Session, skip: int = 0, limit: int = 10):
-    properties = db.query(Property).offset(skip).limit(limit).all()
+    properties = db.query(Property).filter(Property.is_approved == True).offset(skip).limit(limit).all()
     return _attach_images_to_properties(db, properties)
 
 def search_properties(
@@ -84,8 +84,7 @@ def search_properties(
     skip: int = 0,
     limit: int = 10
 ):
-    query = db.query(Property)
-
+    query = db.query(Property).filter(Property.is_approved == True)
     if search_query:
         search_format = f"%{search_query}%"
         query = query.filter(
@@ -159,3 +158,7 @@ def create_enquiry(db: Session, data: ContactOwner, customer_id: int):
     db.add(new_enquiry)
     db.commit()
     return new_enquiry
+
+def get_pending_properties(db: Session, skip: int = 0, limit: int = 10):
+    properties = db.query(Property).filter(Property.is_approved == False).offset(skip).limit(limit).all()
+    return _attach_images_to_properties(db, properties)
