@@ -1,134 +1,123 @@
-======================================================
-🏠 REAL ESTATE API DOCUMENTATION FOR FRONTEND
-======================================================
-Base URL: http://localhost:8000  (Update for production)
+=========================================================
+          PROPERTY PORTAL API DOCUMENTATION
+=========================================================
 
-GLOBAL HEADERS:
-- For protected routes, include: 
-  Authorization: Bearer <your_access_token>
+---------------------------------------------------------
+1. AUTHENTICATION & USERS
+---------------------------------------------------------
+POST /login
+- Purpose: Logs in a user (Customer, Agent, or Builder) and returns a JWT access token.
+- Input: Form-Data (username/email, password)
+- Access: Public
 
-------------------------------------------------------
-1. 🔐 AUTHENTICATION & REGISTRATION
-------------------------------------------------------
+GET /users/me
+- Purpose: Returns the profile information of the currently logged-in user.
+- Access: Requires valid JWT Token (Any role)
 
-A. Register Customer
-- Endpoint: POST /register/customer
-- Auth Required: No
-- Body (JSON): 
-  {
-    "full_name": "John Doe",
-    "email": "john@example.com",
-    "phone": "1234567890",
-    "password": "password123",
-    "city": "New York"
-  }
+---------------------------------------------------------
+2. REGISTRATION
+---------------------------------------------------------
+POST /register/customer
+- Purpose: Creates a new Customer account.
+- Input: Form-Data (full_name, email, phone, password, city, optional profile_image file)
+- Access: Public
 
-B. Register Agent
-- Endpoint: POST /register/agent
-- Auth Required: No
-- Body (JSON): Same as above, but add "rera_number" and "agency_name"
+POST /register/agent
+- Purpose: Creates a new Agent account.
+- Input: Form-Data (full_name, email, phone, password, rera_number, agency_name, city, optional profile_image file)
+- Access: Public
 
-C. Register Builder
-- Endpoint: POST /register/builder
-- Auth Required: No
-- Body (JSON): Uses "company_name", "contact_person", "email", "phone", "password", "rera_number", "city"
+POST /register/builder
+- Purpose: Creates a new Builder account.
+- Input: Form-Data (company_name, contact_person, email, phone, password, rera_number, city, optional profile_image file)
+- Access: Public
 
-D. Login (Get Token)
+---------------------------------------------------------
+3. PROPERTIES (CORE FEATURES)
+---------------------------------------------------------
+POST /createproperty
+- Purpose: Creates a new property listing. If created by Agent/Builder, it is automatically approved. If created by a Customer, it goes into the pending queue.
+- Access: Requires valid JWT Token (Any role)
 
-  Endpoint: POST /login
-  Auth Required: No
-  Content-Type: application/json (Standard JSON Body)
-  Body (JSON):
-  {
-    "email": "<user_email>",
-    "password": "<user_password>"
-  }
-  Response (200 OK):
-  {
-    "access_token": "eyJhbGci...",
-    "token_type": "bearer",
-    "role": "customer|agent|builder"
-  }
-------------------------------------------------------
-2. 🏢 PROPERTIES (Standard API)
-------------------------------------------------------
+GET /properties
+- Purpose: Fetches a list of all APPROVED properties for the public feed.
+- Access: Public
 
-A. Get All Properties (Paginated)
-- Endpoint: GET /properties
-- Auth Required: No
-- Query Params:
-  - skip (int, default: 0)
-  - limit (int, default: 10)
-- Response: Array of property objects with attached `image_ids`.
+GET /properties/search
+- Purpose: Searches approved properties using filters (title, type, min/max price, bedrooms, status).
+- Access: Public
 
-B. Search & Filter Properties
-- Endpoint: GET /properties/search
-- Auth Required: No
-- Query Params (All Optional):
-  - city (string)
-  - property_type (string - e.g., "APARTMENT", "VILLA")
-  - min_price (float)
-  - max_price (float)
-  - bedrooms (int)
-  - skip (int), limit (int)
-- Response: Array of filtered property objects.
+GET /properties/pending
+- Purpose: Fetches a list of UNAPPROVED properties waiting for review.
+- Access: Agent Only
 
-C. Get Single Property Details
-- Endpoint: GET /properties/{property_id}
-- Auth Required: No
-- Path Param: property_id (int)
-- Response: Single property object.
+POST /properties/import
+- Purpose: Uploads a Master Sheet (CSV) and imports properties directly into the database.
+- Input: CSV File
+- Access: Public (Consider restricting to Admin/Agent in the future)
 
-D. Create Property
-- Endpoint: POST /createproperty
-- Auth Required: YES (Role: Agent or Builder only)
-- Body (JSON): 
-  {
-    "title": "Luxury Villa",body: JSON.stringify({
-    email: email,
-    password: password,
-  }),
-    "property_type": "VILLA",
-    "city": "Los Angeles",
-    "expected_price": 500000,
-    ... (other fields based on PropertyCreate schema),
-    "image_ids": [1, 2, 3]  // IDs returned from the image upload endpoint
-  }
-- Response: {"property_id": 1, "message": "Property created successfully..."}
+GET /properties/export
+- Purpose: Downloads the entire property database as a Master Sheet (CSV).
+- Access: Public (Consider restricting to Admin/Agent in the future)
 
-------------------------------------------------------
-3. 🖼️ IMAGES & MEDIA
-------------------------------------------------------
+GET /properties/{property_id}
+- Purpose: Fetches the full details and images of a single specific property.
+- Access: Public
 
-A. Upload Single Image to S3
-- Endpoint: POST /upload-image
-- Auth Required: No (or Yes, if you choose to secure it)
-- Content-Type: multipart/form-data
-- Body (Form Data):
-  - image: <File object>
-- Response:
-  {
-    "message": "Image uploaded successfully",
-    "image_url": "https://bucket.s3.amazonaws.com/..."
-  }
+PUT /properties/{property_id}/approve
+- Purpose: Approves a pending property, making it visible on the public feed.
+- Access: Agent Only
 
-B. Download Multiple Images as ZIP
-- Endpoint: POST /property-images/download
-- Auth Required: No
-- Body (JSON):
-  {
-    "image_ids": [1, 2, 3]
-  }
-- Response: File download (application/zip)
+---------------------------------------------------------
+4. IMAGES & MEDIA
+---------------------------------------------------------
+POST /upload-image
+- Purpose: Uploads a property image to AWS S3 and saves the URL to the database.
+- Input: Image File
+- Access: Public / Authenticated Users
 
-------------------------------------------------------
-4. 📋 LEGACY / CURRENT PROPERTIES (If still in use)
-------------------------------------------------------
+POST /property-images/download
+- Purpose: Downloads property images as a ZIP file. (Note: Recommend removing this if using S3 public URLs).
+- Access: Public
 
-A. Get Current Properties
-- Endpoint: GET /current-properties
-- Query Params: skip, limit
+---------------------------------------------------------
+5. CUSTOMER DASHBOARD & ACTIONS
+---------------------------------------------------------
+GET /api/customer/profile
+- Purpose: Fetches the logged-in customer's profile details.
+- Access: Customer Only
 
-B. Create Current Property
-- Endpoint: POST /current-properties/create
-- Body (JSON): Matches CurrentPropertyCreate schema.
+PUT /api/customer/profile
+- Purpose: Updates the customer's profile text data (name, phone, city).
+- Access: Customer Only
+
+POST /api/customer/profile/image
+- Purpose: Uploads and sets the customer's profile picture via AWS S3.
+- Input: Image File
+- Access: Customer Only
+
+POST /api/customer/buy-requirements
+- Purpose: Submits a new property buying requirement for the customer.
+- Access: Customer Only
+
+GET /api/customer/buy-requirements
+- Purpose: Fetches all buying requirements posted by the logged-in customer.
+- Access: Customer Only
+
+DELETE /api/customer/buy-requirements/{req_id}
+- Purpose: Deletes a specific buying requirement.
+- Access: Customer Only
+
+POST /api/customer/favourites/{property_id}
+- Purpose: Adds a specific property to the customer's favourites list.
+- Access: Customer Only
+
+GET /api/customer/favourites
+- Purpose: Fetches all properties the customer has favorited.
+- Access: Customer Only
+
+POST /api/customer/contact-owner
+- Purpose: Sends a message/inquiry about a specific property to the system.
+- Access: Customer Only
+
+=========================================================
