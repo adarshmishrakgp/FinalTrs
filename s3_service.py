@@ -10,7 +10,7 @@ def get_active_aws_config(db: Session):
         raise HTTPException(status_code=500, detail="AWS config not found")
     return config
 
-def upload_file_to_s3(upload_file, db: Session) -> str:
+def upload_file_to_s3(upload_file, db: Session, folder: str = "properties") -> str:
     try:
         config = get_active_aws_config(db)
         s3 = boto3.client(
@@ -19,7 +19,7 @@ def upload_file_to_s3(upload_file, db: Session) -> str:
             aws_secret_access_key=config.aws_secret_access_key,
             region_name=config.aws_region,
         )
-        unique_name = f"properties/{uuid.uuid4()}-{upload_file.filename}"
+        unique_name = f"{folder}/{uuid.uuid4()}-{upload_file.filename}"
         
         s3.upload_fileobj(
             upload_file.file,

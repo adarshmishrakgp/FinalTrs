@@ -83,29 +83,89 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 
 @app.get("/users/me", response_model=schemas.UserResponse)
 def get_current_user_profile(current_user = Depends(get_current_user)):
-    return {
-        "id": current_user.id,
-        "email": current_user.email,
-        "role": getattr(current_user, "role", "unknown"),
-        "full_name": getattr(current_user, "full_name", None),
-        "company_name": getattr(current_user, "company_name", None),
-        "phone": current_user.phone
-    }
+    return current_user
 
 # ==========================================
 # 🏠 REGISTRATION
 # ==========================================
-@app.post("/register/customer")
-def register_customer(data: schemas.CustomerCreate, db: Session = Depends(get_db)):
-    return registrationcrud.create_customer(db, data)
+@app.post("/register/customer", response_model=schemas.UserResponse)
+def register_customer(
+    full_name: str = Form(...),
+    email: str = Form(...),
+    phone: str = Form(...),
+    password: str = Form(...),
+    city: str = Form(None),
+    profile_image: UploadFile = File(None), # The optional image!
+    db: Session = Depends(get_db)
+):
+    # 1. Check if email already exists
+    if db.query(models.Customer).filter(models.Customer.email == email).first():
+        raise HTTPException(status_code=400, detail="Email already registered")
 
-@app.post("/register/agent")
-def register_agent(data: schemas.AgentCreate, db: Session = Depends(get_db)):
-    return registrationcrud.create_agent(db, data)
+    # 2. Upload the image if the user provided one
+    image_url = None
+    if profile_image:
+        image_url = upload_file_to_s3(profile_image, db, folder="profiles")
 
-@app.post("/register/builder")
-def register_builder(data: schemas.BuilderCreate, db: Session = Depends(get_db)):
-    return registrationcrud.create_builder(db, data)
+    # 3. Package data into your existing schema for validation
+    user_data = schemas.CustomerCreate(
+        full_name=full_name, email=email, phone=phone, password=password, city=city
+    )
+    
+    # 4. Save to database using your updated CRUD function
+    return registrationcrud.create_customer(db, user_data, profile_image_url=image_url)
+
+
+@app.post("/register/agent", response_model=schemas.UserResponse)
+def register_agent(
+    full_name: str = Form(...),
+    email: str = Form(...),
+    phone: str = Form(...),
+    password: str = Form(...),
+    rera_number: str = Form(None),
+    agency_name: str = Form(None),
+    city: str = Form(None),
+    profile_image: UploadFile = File(None),
+    db: Session = Depends(get_db)
+):
+    if db.query(models.Agent).filter(models.Agent.email == email).first():
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    image_url = None
+    if profile_image:
+        image_url = upload_file_to_s3(profile_image, db, folder="profiles")
+
+    user_data = schemas.AgentCreate(
+        full_name=full_name, email=email, phone=phone, password=password, 
+        rera_number=rera_number, agency_name=agency_name, city=city
+    )
+    return registrationcrud.create_agent(db, user_data, profile_image_url=image_url)
+
+
+@app.post("/register/builder", response_model=schemas.UserResponse)
+def register_builder(
+    company_name: str = Form(...),
+    contact_person: str = Form(None),
+    email: str = Form(...),
+    phone: str = Form(...),
+    password: str = Form(...),
+    rera_number: str = Form(None),
+    city: str = Form(None),
+    profile_image: UploadFile = File(None),
+    db: Session = Depends(get_db)
+):
+    if db.query(models.Builder).filter(models.Builder.email == email).first():
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    image_url = None
+    if profile_image:
+        image_url = upload_file_to_s3(profile_image, db, folder="profiles")
+
+    user_data = schemas.BuilderCreate(
+        company_name=company_name, contact_person=contact_person, email=email, 
+        phone=phone, password=password, rera_number=rera_number, city=city
+    )
+    return registrationcrud.create_builder(db, user_data, profile_image_url=image_url)
 
 # ==========================================
 # 🏙️ PROPERTIES
@@ -394,3 +454,50 @@ def contact_owner(data: schemas.ContactOwner, db: Session = Depends(get_db), use
         "property_id": data.property_id,
         "customer_id": user.id
     }
+
+from fastapi import UploadFile, File
+
+@app.post("/api/customer/profile/image")
+async def upload_profile_image(
+    image: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user = Depends(get_current_customer) 
+):
+    # 1. Upload to S3, specifying the "profiles" folder
+    image_url = upload_file_to_s3(image, db, folder="profiles")
+    
+    # 2. Update the user's database record
+    # Note: If your model is called User instead of Customer, adjust the query below
+    db_user = db.query(models.Customer).filter(models.Customer.id == user.id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    db_user.profile_image_url = image_url
+    db.commit()
+    db.refresh(db_user)
+
+    return {
+        "message": "Profile photo uploaded successfully",
+        "profile_image_url": image_url
+    }
+
+# from pydantic import BaseModel
+
+# class AWSConfigCreate(BaseModel):
+#     access_key: str
+#     secret_key: str
+#     region: str
+#     bucket: str
+
+# @app.post("/setup-aws")
+# def setup_aws_config(config: AWSConfigCreate, db: Session = Depends(get_db)):
+#     new_config = models.AWSConfig(
+#         aws_access_key_id=config.access_key,
+#         aws_secret_access_key=config.secret_key,
+#         aws_region=config.region,
+#         aws_s3_bucket=config.bucket,
+#         is_active=True
+#     )
+#     db.add(new_config)
+#     db.commit()
+#     return {"message": "AWS Config saved successfully!"}

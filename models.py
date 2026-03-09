@@ -1,4 +1,4 @@
-from sqlalchemy import Column, BigInteger, String, Text, DECIMAL, Integer, DateTime, TIMESTAMP, func, LargeBinary, Boolean
+from sqlalchemy import Column, BigInteger, String, Text, DECIMAL, Integer, DateTime, TIMESTAMP, func, LargeBinary, Boolean,ForeignKey
 from database import Base
 
 # ===== UNIFIED PROPERTY MODEL (Matches Master Sheet) =====
@@ -32,7 +32,7 @@ class Property(Base):
 class PropertyImage(Base):
     __tablename__ = "property_images"
     id = Column(BigInteger, primary_key=True, index=True)
-    property_id = Column(BigInteger, index=True, nullable=True)
+    property_id = Column(BigInteger, ForeignKey("properties.id"), index=True, nullable=True) 
     image_url = Column(String(500), nullable=True)
     image_data = Column(LargeBinary, nullable=True)
     created_at = Column(TIMESTAMP, server_default=func.now())
@@ -47,6 +47,7 @@ class Customer(Base):
     password_hash = Column(String(255))
     city = Column(String(100))
     created_at = Column(TIMESTAMP, server_default=func.now())
+    profile_image_url = Column(String(255), nullable=True)
 
 class Agent(Base):
     __tablename__ = "agents"
@@ -59,6 +60,7 @@ class Agent(Base):
     agency_name = Column(String(150))
     city = Column(String(100))
     created_at = Column(TIMESTAMP, server_default=func.now())
+    profile_image_url = Column(String(255), nullable=True)
 
 class Builder(Base):
     __tablename__ = "builders"
@@ -71,6 +73,7 @@ class Builder(Base):
     rera_number = Column(String(100))
     city = Column(String(100))
     created_at = Column(TIMESTAMP, server_default=func.now())
+    profile_image_url = Column(String(255), nullable=True)
 
 class AWSConfig(Base):
     __tablename__ = "aws_config"

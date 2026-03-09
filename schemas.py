@@ -67,6 +67,7 @@ class UserResponse(BaseModel):
     company_name: Optional[str] = None
     phone: str
     model_config = ConfigDict(from_attributes=True)
+    profile_image_url: Optional[str] = None
 
 class LoginRequest(BaseModel):
     email: EmailStr
