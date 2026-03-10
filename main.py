@@ -101,6 +101,9 @@ def register_customer(
     # 1. Check if email already exists
     if db.query(models.Customer).filter(models.Customer.email == email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
+    
+    if db.query(models.Customer).filter(models.Customer.phone == phone).first():
+        raise HTTPException(status_code=400, detail="Phone already registered")
 
     # 2. Upload the image if the user provided one
     image_url = None
@@ -109,7 +112,7 @@ def register_customer(
 
     # 3. Package data into your existing schema for validation
     user_data = schemas.CustomerCreate(
-        full_name=full_name, email=email, phone=phone, password=password, city=city
+        full_name=full_name, email=email, phone=phone, password=password, city=city, role="customer"
     )
     
     # 4. Save to database using your updated CRUD function
@@ -130,6 +133,8 @@ def register_agent(
 ):
     if db.query(models.Agent).filter(models.Agent.email == email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
+    if db.query(models.Agent).filter(models.Agent.phone == phone).first():
+        raise HTTPException(status_code=400, detail="Phone already registered")
 
     image_url = None
     if profile_image:
@@ -137,9 +142,11 @@ def register_agent(
 
     user_data = schemas.AgentCreate(
         full_name=full_name, email=email, phone=phone, password=password, 
-        rera_number=rera_number, agency_name=agency_name, city=city
+        rera_number=rera_number, agency_name=agency_name, city=city, role="agent"
     )
-    return registrationcrud.create_agent(db, user_data, profile_image_url=image_url)
+    agent =registrationcrud.create_agent(db, user_data, profile_image_url=image_url)
+    agent.role = "agent" 
+    return agent 
 
 
 @app.post("/register/builder", response_model=schemas.UserResponse)
@@ -156,6 +163,9 @@ def register_builder(
 ):
     if db.query(models.Builder).filter(models.Builder.email == email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
+    
+    if db.query(models.Builder).filter(models.Builder.phone == phone).first():
+        raise HTTPException(status_code=400, detail="Phone already registered")
 
     image_url = None
     if profile_image:
@@ -163,9 +173,11 @@ def register_builder(
 
     user_data = schemas.BuilderCreate(
         company_name=company_name, contact_person=contact_person, email=email, 
-        phone=phone, password=password, rera_number=rera_number, city=city
+        phone=phone, password=password, rera_number=rera_number, city=city,role="builder"
     )
-    return registrationcrud.create_builder(db, user_data, profile_image_url=image_url)
+    builder = registrationcrud.create_builder(db, user_data, profile_image_url=image_url)
+    builder.role = "builder"
+    return builder
 
 # ==========================================
 # 🏙️ PROPERTIES
