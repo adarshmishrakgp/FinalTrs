@@ -68,6 +68,7 @@ class UserResponse(BaseModel):
     company_name: Optional[str] = None
     phone: str
     model_config = ConfigDict(from_attributes=True)
+    city: Optional[str] = None
     profile_image_url: Optional[str] = None
 
 class LoginRequest(BaseModel):
@@ -83,6 +84,7 @@ class ProfileUpdate(BaseModel):
     full_name: str
     phone: str
     city: Optional[str] = None
+    company_name: Optional[str] = None
 
 class BuyRequirementCreate(BaseModel):
     city: str

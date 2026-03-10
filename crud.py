@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from models import Property, PropertyImage
 from schemas import PropertyCreate, PropertyResponse,ProfileUpdate,BuyRequirementCreate,ContactOwner
-from models import Customer, BuyRequirement, Favourite, Enquiry
+from models import Customer, BuyRequirement, Favourite, Enquiry,Agent,Builder
 from collections import defaultdict
 import io
 import zipfile
@@ -9,7 +9,6 @@ from sqlalchemy import or_
 from typing import Optional
 
 def create_property(db: Session, property_data: PropertyCreate,is_approved: bool = False):
-    # Extract image_ids from the Pydantic model
     prop_data_dict = property_data.model_dump(exclude={"image_ids"})
     
     db_property = Property(**prop_data_dict,is_approved=is_approved)
@@ -17,7 +16,6 @@ def create_property(db: Session, property_data: PropertyCreate,is_approved: bool
     db.commit()
     db.refresh(db_property)
 
-    # Link Images to Property if any were uploaded to S3
     if property_data.image_ids:
         db.query(PropertyImage).filter(
             PropertyImage.id.in_(property_data.image_ids)
@@ -106,15 +104,30 @@ def search_properties(
     return _attach_images_to_properties(db, properties)
 
 # --- CUSTOMER PROFILE ---
-def update_customer_profile(db: Session, customer_id: int, profile_data: ProfileUpdate):
-    db_customer = db.query(Customer).filter(Customer.id == customer_id).first()
-    if db_customer:
-        db_customer.full_name = profile_data.full_name
-        db_customer.phone = profile_data.phone
-        db_customer.city = profile_data.city
+def update_user_profile(db: Session, user_id: int, role: str, profile_data: ProfileUpdate):
+    db_user = None
+    if role == "customer":
+        db_user = db.query(Customer).filter(Customer.id == user_id).first()
+    elif role == "agent":
+        db_user = db.query(Agent).filter(Agent.id == user_id).first()
+    elif role == "builder":
+        db_user = db.query(Builder).filter(Builder.id == user_id).first()
+    if db_user:
+        if profile_data.phone:
+            db_user.phone = profile_data.phone
+        if profile_data.city:
+            db_user.city = profile_data.city
+            
+        if profile_data.full_name and hasattr(db_user, 'full_name'):
+            db_user.full_name = profile_data.full_name
+            
+        if profile_data.company_name and hasattr(db_user, 'company_name'):
+            db_user.company_name = profile_data.company_name
+            
         db.commit()
-        db.refresh(db_customer)
-    return db_customer
+        db.refresh(db_user)
+        
+    return db_user
 
 # --- BUY REQUIREMENTS ---
 def create_buy_requirement(db: Session, req_data: BuyRequirementCreate, customer_id: int):

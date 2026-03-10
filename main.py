@@ -453,7 +453,7 @@ def get_profile(user = Depends(get_current_customer)):
 # 2. Update Profile
 @app.put("/api/customer/profile")
 def update_profile(data: schemas.ProfileUpdate, db: Session = Depends(get_db), user = Depends(get_current_customer)):
-    updated_user = crud.update_customer_profile(db, user.id, data)
+    updated_user = crud.update_user_profile(db, user.id, data)
     return {"message": "Profile updated", "data": updated_user}
 
 # 3. Post Buy Requirement
