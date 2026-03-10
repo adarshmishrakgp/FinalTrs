@@ -129,7 +129,9 @@ def register_customer(
         user_data = schemas.CustomerCreate(
             full_name=full_name, email=email, phone=phone, password=password, city=city, role="customer",company_name=company_name,
         )
-        return registrationcrud.create_customer(db, user_data, profile_image_url=image_url)
+        customer = registrationcrud.create_customer(db, user_data, profile_image_url=image_url)
+        customer.role="customer"
+        return customer
     except HTTPException:
         raise
     except SQLAlchemyError as e:
