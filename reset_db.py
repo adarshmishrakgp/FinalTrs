@@ -1,12 +1,10 @@
-from database import engine
+from database import engine, Base
 import models
 
-print("Starting database reset...")
+print("🚨 Dropping all old tables...")
+Base.metadata.drop_all(bind=engine)
 
-# Drop the old tables
-models.Base.metadata.drop_all(bind=engine)
-print("Old tables dropped.")
+print("🏗️ Rebuilding tables with new strict constraints...")
+Base.metadata.create_all(bind=engine)
 
-# Recreate the tables with the new Master Sheet columns
-models.Base.metadata.create_all(bind=engine)
-print("New tables created successfully!")
+print("✅ Database successfully reset!")

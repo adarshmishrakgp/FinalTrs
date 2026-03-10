@@ -21,7 +21,7 @@ class PropertyCreate(BaseModel):
     size: Optional[Decimal] = None
     floors: Optional[int] = None
     owner: Optional[str] = None
-    image_ids: Optional[List[int]] = []  # Kept so the S3 image upload feature still works
+    image_ids: Optional[List[int]] = []
 
 class PropertyResponse(PropertyCreate):
     id: int 
@@ -41,6 +41,7 @@ class CustomerCreate(BaseModel):
     phone: str
     password: str
     city: str | None = None
+    company_name: str | None = None 
 
 class AgentCreate(BaseModel):
     full_name: str
@@ -50,6 +51,7 @@ class AgentCreate(BaseModel):
     rera_number: str | None = None
     agency_name: str | None = None
     city: str | None = None
+    company_name: str | None = None
 
 class BuilderCreate(BaseModel):
     company_name: str
@@ -67,9 +69,9 @@ class UserResponse(BaseModel):
     full_name: Optional[str] = None
     company_name: Optional[str] = None
     phone: str
-    model_config = ConfigDict(from_attributes=True)
     city: Optional[str] = None
     profile_image_url: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
 
 class LoginRequest(BaseModel):
     email: EmailStr
@@ -81,8 +83,8 @@ class Token(BaseModel):
     role: str
 
 class ProfileUpdate(BaseModel):
-    full_name: str
-    phone: str
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
     city: Optional[str] = None
     company_name: Optional[str] = None
 

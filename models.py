@@ -1,7 +1,6 @@
-from sqlalchemy import Column, BigInteger, String, Text, DECIMAL, Integer, DateTime, TIMESTAMP, func, LargeBinary, Boolean,ForeignKey
+from sqlalchemy import Column, BigInteger, String, Text, DECIMAL, Integer, DateTime, TIMESTAMP, func, LargeBinary, Boolean, ForeignKey, CheckConstraint
 from database import Base
 
-# ===== UNIFIED PROPERTY MODEL (Matches Master Sheet) =====
 class Property(Base):
     __tablename__ = "properties"
 
@@ -12,7 +11,7 @@ class Property(Base):
     map_location = Column(String(255), nullable=True)
     agent_email = Column(String(255), nullable=True)
     property_type = Column(String(100), nullable=True)  # e.g., "Plot", "Apartment"
-    image = Column(Text, nullable=True)                 # For Google Drive links from CSV
+    image = Column(Text, nullable=True)                 # For Google Drive or S3 links
     description = Column(Text, nullable=True)
     price = Column(DECIMAL(15, 2), nullable=True)
     gallery = Column(Text, nullable=True)
@@ -29,11 +28,18 @@ class Property(Base):
     created_date = Column(DateTime, default=func.now())
     updated_date = Column(DateTime, default=func.now(), onupdate=func.now())
 
-# ===== KEPT FOR S3 IMAGE UPLOADS =====
+    __table_args__ = (
+        CheckConstraint('price >= 0', name='check_price_positive'),
+        CheckConstraint('bedrooms >= 0', name='check_bedrooms_positive'),
+        CheckConstraint('bathrooms >= 0', name='check_bathrooms_positive'),
+        CheckConstraint('size >= 0', name='check_size_positive'),
+    )
+
+# ===== PROPERTY IMAGES =====
 class PropertyImage(Base):
     __tablename__ = "property_images"
     id = Column(BigInteger, primary_key=True, index=True)
-    property_id = Column(BigInteger, ForeignKey("properties.id"), index=True, nullable=True) 
+    property_id = Column(BigInteger, ForeignKey("properties.id", ondelete="CASCADE"), index=True, nullable=True) 
     image_url = Column(String(500), nullable=True)
     image_data = Column(LargeBinary, nullable=True)
     created_at = Column(TIMESTAMP, server_default=func.now())
@@ -49,6 +55,7 @@ class Customer(Base):
     city = Column(String(100))
     created_at = Column(TIMESTAMP, server_default=func.now())
     profile_image_url = Column(String(255), nullable=True)
+    company_name = Column(String(200), nullable=True)
 
 class Agent(Base):
     __tablename__ = "agents"
@@ -62,6 +69,7 @@ class Agent(Base):
     city = Column(String(100))
     created_at = Column(TIMESTAMP, server_default=func.now())
     profile_image_url = Column(String(255), nullable=True)
+    company_name = Column(String(200), nullable=True)
 
 class Builder(Base):
     __tablename__ = "builders"
@@ -90,7 +98,7 @@ class AWSConfig(Base):
 class BuyRequirement(Base):
     __tablename__ = "buy_requirements"
     id = Column(BigInteger, primary_key=True, index=True)
-    customer_id = Column(BigInteger, index=True)
+    customer_id = Column(BigInteger, ForeignKey("customers.id", ondelete="CASCADE"), index=True)
     city = Column(String(100))
     property_type = Column(String(100))
     min_price = Column(DECIMAL(15, 2), nullable=True)
@@ -99,18 +107,23 @@ class BuyRequirement(Base):
     max_carpet_area = Column(DECIMAL(15, 2), nullable=True)
     possession_status = Column(String(100))
     created_at = Column(TIMESTAMP, server_default=func.now())
+    
+    __table_args__ = (
+        CheckConstraint('min_price >= 0', name='check_req_min_price'),
+        CheckConstraint('max_price >= min_price', name='check_req_max_price'),
+    )
 
 class Favourite(Base):
     __tablename__ = "favourites"
     id = Column(BigInteger, primary_key=True, index=True)
-    customer_id = Column(BigInteger, index=True)
-    property_id = Column(BigInteger, index=True)
+    customer_id = Column(BigInteger, ForeignKey("customers.id", ondelete="CASCADE"), index=True)
+    property_id = Column(BigInteger, ForeignKey("properties.id", ondelete="CASCADE"), index=True)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
 class Enquiry(Base):
     __tablename__ = "enquiries"
     id = Column(BigInteger, primary_key=True, index=True)
-    customer_id = Column(BigInteger, index=True)
-    property_id = Column(BigInteger, index=True)
+    customer_id = Column(BigInteger, ForeignKey("customers.id", ondelete="CASCADE"), index=True)
+    property_id = Column(BigInteger, ForeignKey("properties.id", ondelete="CASCADE"), index=True)
     message = Column(Text)
     created_at = Column(TIMESTAMP, server_default=func.now())
