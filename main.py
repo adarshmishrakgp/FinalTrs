@@ -222,6 +222,9 @@ def create_property(
     current_user = Depends(get_current_user)
 ):
     try:
+        request.posted_by_id = current_user.id
+        request.posted_by_role = current_user.role
+
         auto_approve = current_user.role in ["agent", "builder"]    
         new_property = crud.create_property(db=db, property_data=request, is_approved=auto_approve)
         
@@ -323,20 +326,20 @@ async def import_properties_from_csv(
             new_property = models.Property(
                 title=row.get("Title", "Untitled"),
                 bedrooms=parse_int(row.get("Bedrooms")),
-                map_location=row.get("Map Location"),
+                map_address=row.get("Map Location"),    # Changed map_location to map_address
                 agent_email=row.get("Agent Email"),
                 property_type=row.get("Property Type"),
                 image=row.get("new image") or row.get("Image"), 
                 description=row.get("Description"),
-                price=parse_float(row.get("Price")),
+                expected_price=parse_float(row.get("Price")),
                 gallery=row.get("Gallery"),
-                year_built=parse_int(row.get("Year Built")),
+                property_age=parse_int(row.get("Year Built")), # Changed year_built to property_age
                 status=row.get("Status"),
                 agent_name=row.get("Agent Name"),
                 bathrooms=parse_int(row.get("Bathrooms")),
                 agent_phone=row.get("Agent Phone"),
-                size=parse_float(row.get("Size")),
-                floors=parse_int(row.get("Floors")),
+                carpet_area=parse_float(row.get("Size")),      # Changed size to carpet_area
+                total_floors=parse_int(row.get("Floors")),     # Changed floors to total_floors
                 owner=row.get("Owner"),
                 is_approved=True 
             )
@@ -369,12 +372,15 @@ def export_properties_to_csv(db: Session = Depends(get_db)):
 
         for prop in properties:
             writer.writerow({
-                "Title": prop.title, "Bedrooms": prop.bedrooms, "Map Location": prop.map_location,
+                "Title": prop.title, "Bedrooms": prop.bedrooms, "Map Location": prop.map_address, # Mapped to new
                 "Agent Email": prop.agent_email, "Property Type": prop.property_type, "Image": prop.image,
-                "Description": prop.description, "Price": prop.price, "Gallery": prop.gallery,
-                "Year Built": prop.year_built, "Status": prop.status, "Agent Name": prop.agent_name,
-                "Bathrooms": prop.bathrooms, "Agent Phone": prop.agent_phone, "Size": prop.size,
-                "Floors": prop.floors, "ID": prop.id, "Owner": prop.owner,
+                "Description": prop.description, "Price": prop.expected_price, # Mapped to new
+                "Gallery": prop.gallery,
+                "Year Built": prop.property_age, # Mapped to new
+                "Status": prop.status, "Agent Name": prop.agent_name,
+                "Bathrooms": prop.bathrooms, "Agent Phone": prop.agent_phone, "Size": prop.carpet_area, # Mapped to new
+                "Floors": prop.total_floors, # Mapped to new
+                "ID": prop.id, "Owner": prop.owner,
                 "Created Date": prop.created_date.strftime("%Y-%m-%d %H:%M:%S") if prop.created_date else "",
                 "Updated Date": prop.updated_date.strftime("%Y-%m-%d %H:%M:%S") if prop.updated_date else ""
             })
@@ -492,8 +498,7 @@ def get_my_properties(
             models.Property.posted_by_id == current_user.id,
             models.Property.posted_by_role == current_user.role
         ).offset(skip).limit(limit).all()
-        
-        return my_properties
+        return crud._attach_images_to_properties(db, my_properties)
         
     except Exception as e:
         raise HTTPException(

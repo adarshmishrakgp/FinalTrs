@@ -24,12 +24,12 @@ class Property(Base):
     balconies = Column(Integer, nullable=True)
     
     city = Column(String(100), nullable=True)
-    map_address = Column(String(500), nullable=True)  # Replaces map_location
+    map_address = Column(String(500), nullable=True)
     nearby_landmarks = Column(String(500), nullable=True)
     latitude = Column(DECIMAL(10, 8), nullable=True)
     longitude = Column(DECIMAL(11, 8), nullable=True)
     
-    expected_price = Column(DECIMAL(15, 2), nullable=True) # Replaces price
+    expected_price = Column(DECIMAL(15, 2), nullable=True)
     booking_amount = Column(DECIMAL(15, 2), nullable=True)
     is_price_negotiable = Column(Boolean, default=False)
     
@@ -62,10 +62,10 @@ class Property(Base):
     updated_date = Column(DateTime, default=func.now(), onupdate=func.now())
 
     __table_args__ = (
-        CheckConstraint('price >= 0', name='check_price_positive'),
+        CheckConstraint('expected_price >= 0', name='check_expected_price_positive'),
         CheckConstraint('bedrooms >= 0', name='check_bedrooms_positive'),
         CheckConstraint('bathrooms >= 0', name='check_bathrooms_positive'),
-        CheckConstraint('size >= 0', name='check_size_positive'),
+        CheckConstraint('carpet_area >= 0', name='check_carpet_area_positive'),
     )
 
 # ===== PROPERTY IMAGES =====
