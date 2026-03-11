@@ -1,7 +1,6 @@
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import SQLAlchemyError
 from models import Property, PropertyImage
-from schemas import PropertyCreate, PropertyResponse, ProfileUpdate, BuyRequirementCreate, ContactOwner
+from schemas import PropertyCreate, PropertyResponse, ProfileUpdate, BuyRequirementCreate, ContactOwner,PropertyUpdate
 from models import Customer, BuyRequirement, Favourite, Enquiry, Agent, Builder
 from collections import defaultdict
 import io
@@ -29,6 +28,62 @@ def create_property(db: Session, property_data: PropertyCreate, is_approved: boo
             db.commit()
 
         return db_property
+    except Exception as e:
+        db.rollback()
+        raise e
+    
+def update_my_property(db: Session, property_id: int, user_id: int, user_role: str, update_data: PropertyUpdate):
+    try:
+        # Find the property BUT ONLY IF it belongs to the current user
+        db_prop = db.query(Property).filter(
+            Property.id == property_id,
+            Property.posted_by_id == user_id,
+            Property.posted_by_role == user_role
+        ).first()
+        
+        if not db_prop:
+            return None # Not found or not authorized
+            
+        # Extract only the fields that were actually sent in the request
+        update_dict = update_data.model_dump(exclude_unset=True, exclude={"image_ids"})
+        
+        # Update the database object dynamically
+        for key, value in update_dict.items():
+            setattr(db_prop, key, value)
+            
+        # Re-link images if new image_ids were sent
+        if update_data.image_ids is not None:
+            # First, unlink all existing images for this property
+            db.query(PropertyImage).filter(PropertyImage.property_id == property_id).update(
+                {"property_id": None}, synchronize_session=False
+            )
+            # Then link the new ones
+            if update_data.image_ids:
+                db.query(PropertyImage).filter(PropertyImage.id.in_(update_data.image_ids)).update(
+                    {"property_id": property_id}, synchronize_session=False
+                )
+                
+        db.commit()
+        db.refresh(db_prop)
+        return db_prop
+    except Exception as e:
+        db.rollback()
+        raise e
+
+def delete_my_property(db: Session, property_id: int, user_id: int, user_role: str):
+    try:
+        db_prop = db.query(Property).filter(
+            Property.id == property_id,
+            Property.posted_by_id == user_id,
+            Property.posted_by_role == user_role
+        ).first()
+        
+        if not db_prop:
+            return False
+            
+        db.delete(db_prop)
+        db.commit()
+        return True
     except Exception as e:
         db.rollback()
         raise e

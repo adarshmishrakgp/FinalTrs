@@ -505,6 +505,68 @@ def get_my_properties(
             status_code=500, 
             detail=f"Failed to fetch your properties: {str(e)}"
         )
+    
+@app.put("/my-properties/{property_id}", response_model=schemas.PropertyResponse)
+def update_property(
+    property_id: int,
+    request: schemas.PropertyUpdate,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    Updates a property that belongs to the currently logged-in user.
+    """
+    try:
+        updated_prop = crud.update_my_property(
+            db=db, 
+            property_id=property_id, 
+            user_id=current_user.id, 
+            user_role=current_user.role, 
+            update_data=request
+        )
+        if not updated_prop:
+            raise HTTPException(
+                status_code=404, 
+                detail="Property not found or you do not have permission to edit it."
+            )
+        
+        # Format the response using your existing image attachment function
+        return crud._attach_images_to_properties(db, [updated_prop])[0]
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update property: {str(e)}")
+
+
+@app.delete("/my-properties/{property_id}")
+def delete_property(
+    property_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    Deletes a property that belongs to the currently logged-in user.
+    """
+    try:
+        success = crud.delete_my_property(
+            db=db, 
+            property_id=property_id, 
+            user_id=current_user.id, 
+            user_role=current_user.role
+        )
+        if not success:
+            raise HTTPException(
+                status_code=404, 
+                detail="Property not found or you do not have permission to delete it."
+            )
+            
+        return {"message": "Property successfully deleted."}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete property: {str(e)}")
 
 @app.get("/api/customer/profile", response_model=schemas.UserResponse)
 def get_profile(user = Depends(get_current_customer)):

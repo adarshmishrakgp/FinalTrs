@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field, EmailStr, ConfigDict
+from pydantic import BaseModel, EmailStr, ConfigDict
 from typing import Optional, List
 from decimal import Decimal
 from datetime import datetime
+
 class PropertyCreate(BaseModel):
     title: str
     property_type: Optional[str] = None
@@ -58,6 +59,41 @@ class PropertyCreate(BaseModel):
     # NEW: Tracking fields
     posted_by_id: Optional[int] = None
     posted_by_role: Optional[str] = None
+
+class PropertyUpdate(BaseModel):
+    title: Optional[str] = None
+    property_type: Optional[str] = None
+    image: Optional[str] = None
+    bedrooms: Optional[int] = None
+    bathrooms: Optional[int] = None
+    balconies: Optional[int] = None
+    floor_number: Optional[int] = None
+    total_floors: Optional[int] = None
+    parking_spaces: Optional[int] = None
+    carpet_area: Optional[Decimal] = None
+    super_area: Optional[Decimal] = None
+    expected_price: Optional[Decimal] = None
+    booking_amount: Optional[Decimal] = None
+    is_price_negotiable: Optional[bool] = None
+    city: Optional[str] = None
+    map_address: Optional[str] = None
+    nearby_landmarks: Optional[str] = None
+    latitude: Optional[Decimal] = None
+    longitude: Optional[Decimal] = None
+    project_name: Optional[str] = None
+    builder_name: Optional[str] = None
+    builder_logo: Optional[str] = None
+    rera_id: Optional[str] = None
+    facing: Optional[str] = None
+    furnished_status: Optional[str] = None
+    property_age: Optional[int] = None
+    possession_status: Optional[str] = None
+    property_post_status: Optional[str] = None
+    facilities: Optional[list] = None
+    property_features: Optional[list] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+    image_ids: Optional[List[int]] = None
 
     
 
