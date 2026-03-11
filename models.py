@@ -1,29 +1,62 @@
-from sqlalchemy import Column, BigInteger, String, Text, DECIMAL, Integer, DateTime, TIMESTAMP, func, LargeBinary, Boolean, ForeignKey, CheckConstraint
+from sqlalchemy import Column, BigInteger, String, Text, DECIMAL, Integer, DateTime, TIMESTAMP, func, LargeBinary, Boolean, ForeignKey, CheckConstraint,JSON
 from database import Base
 
 class Property(Base):
     __tablename__ = "properties"
 
     id = Column(BigInteger, primary_key=True, index=True)
-    
     title = Column(String(255), nullable=False)
-    bedrooms = Column(Integer, nullable=True)
-    map_location = Column(String(255), nullable=True)
-    agent_email = Column(String(255), nullable=True)
-    property_type = Column(String(100), nullable=True)  # e.g., "Plot", "Apartment"
-    image = Column(Text, nullable=True)                 # For Google Drive or S3 links
+    property_type = Column(String(100), nullable=True)  
+    image = Column(Text, nullable=True)                 
+
+    # --- EXISTING FIELDS YOU MIGHT WANT TO KEEP ---
     description = Column(Text, nullable=True)
-    price = Column(DECIMAL(15, 2), nullable=True)
     gallery = Column(Text, nullable=True)
-    year_built = Column(Integer, nullable=True)
-    status = Column(String(100), nullable=True)         # e.g., "Sell", "Rent"
+    status = Column(String(100), nullable=True)         
     agent_name = Column(String(255), nullable=True)
-    bathrooms = Column(Integer, nullable=True)
+    agent_email = Column(String(255), nullable=True)
     agent_phone = Column(String(50), nullable=True)
-    size = Column(DECIMAL(15, 2), nullable=True)        # Represents square footage/area
-    floors = Column(Integer, nullable=True)
-    is_approved = Column(Boolean, default=False)
     owner = Column(String(255), nullable=True)
+
+    # --- NEW FIELDS BASED ON YOUR PAYLOAD ---
+    bedrooms = Column(Integer, nullable=True)
+    bathrooms = Column(Integer, nullable=True)
+    balconies = Column(Integer, nullable=True)
+    
+    city = Column(String(100), nullable=True)
+    map_address = Column(String(500), nullable=True)  # Replaces map_location
+    nearby_landmarks = Column(String(500), nullable=True)
+    latitude = Column(DECIMAL(10, 8), nullable=True)
+    longitude = Column(DECIMAL(11, 8), nullable=True)
+    
+    expected_price = Column(DECIMAL(15, 2), nullable=True) # Replaces price
+    booking_amount = Column(DECIMAL(15, 2), nullable=True)
+    is_price_negotiable = Column(Boolean, default=False)
+    
+    carpet_area = Column(DECIMAL(15, 2), nullable=True)
+    super_area = Column(DECIMAL(15, 2), nullable=True)
+    
+    project_name = Column(String(255), nullable=True)
+    builder_name = Column(String(255), nullable=True)
+    builder_logo = Column(String(500), nullable=True)
+    rera_id = Column(String(100), nullable=True)
+    
+    floor_number = Column(Integer, nullable=True)
+    total_floors = Column(Integer, nullable=True) # Replaces floors
+    facing = Column(String(100), nullable=True)
+    furnished_status = Column(String(100), nullable=True)
+    parking_spaces = Column(Integer, nullable=True)
+    property_age = Column(Integer, nullable=True) # Replaces year_built
+    possession_status = Column(String(100), nullable=True)
+    
+    facilities = Column(JSON, nullable=True)
+    property_features = Column(JSON, nullable=True)
+    
+    property_post_status = Column(String(50), default="ACTIVE")
+    is_approved = Column(Boolean, default=False)
+
+    posted_by_id = Column(BigInteger, nullable=True)
+    posted_by_role = Column(String(50), nullable=True) # e.g., "customer",
 
     created_date = Column(DateTime, default=func.now())
     updated_date = Column(DateTime, default=func.now(), onupdate=func.now())

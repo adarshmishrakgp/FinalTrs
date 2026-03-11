@@ -480,6 +480,27 @@ def get_current_customer(current_user = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Customer access only")
     return current_user
 
+@app.get("/my-properties", response_model=List[schemas.PropertyResponse])
+def get_my_properties(
+    skip: int = 0, 
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: schemas.UserResponse = Depends(get_current_user) 
+):
+    try:
+        my_properties = db.query(models.Property).filter(
+            models.Property.posted_by_id == current_user.id,
+            models.Property.posted_by_role == current_user.role
+        ).offset(skip).limit(limit).all()
+        
+        return my_properties
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to fetch your properties: {str(e)}"
+        )
+
 @app.get("/api/customer/profile", response_model=schemas.UserResponse)
 def get_profile(user = Depends(get_current_customer)):
     return user

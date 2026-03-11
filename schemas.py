@@ -2,33 +2,71 @@ from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from typing import Optional, List
 from decimal import Decimal
 from datetime import datetime
-
 class PropertyCreate(BaseModel):
     title: str
-    bedrooms: Optional[int] = None
-    map_location: Optional[str] = None
-    agent_email: Optional[str] = None
     property_type: Optional[str] = None
     image: Optional[str] = None
-    description: Optional[str] = None
-    price: Optional[Decimal] = None
-    gallery: Optional[str] = None
-    year_built: Optional[int] = None
-    status: Optional[str] = None
-    agent_name: Optional[str] = None
+    
+    # Structural details
+    bedrooms: Optional[int] = None
     bathrooms: Optional[int] = None
-    agent_phone: Optional[str] = None
-    size: Optional[Decimal] = None
-    floors: Optional[int] = None
+    balconies: Optional[int] = None
+    floor_number: Optional[int] = None
+    total_floors: Optional[int] = None
+    parking_spaces: Optional[int] = None
+    
+    # Areas & Pricing
+    carpet_area: Optional[Decimal] = None
+    super_area: Optional[Decimal] = None
+    expected_price: Optional[Decimal] = None
+    booking_amount: Optional[Decimal] = None
+    is_price_negotiable: Optional[bool] = False
+    
+    # Location
+    city: Optional[str] = None
+    map_address: Optional[str] = None
+    nearby_landmarks: Optional[str] = None
+    latitude: Optional[Decimal] = None
+    longitude: Optional[Decimal] = None
+    
+    # Project & Builder Info
+    project_name: Optional[str] = None
+    builder_name: Optional[str] = None
+    builder_logo: Optional[str] = None
+    rera_id: Optional[str] = None
+    
+    # Status & Features
+    facing: Optional[str] = None
+    furnished_status: Optional[str] = None
+    property_age: Optional[int] = None
+    possession_status: Optional[str] = None
+    property_post_status: Optional[str] = "ACTIVE"
+    
+    # Arrays
+    facilities: Optional[List[str]] = []
+    property_features: Optional[List[str]] = []
+
+    # Keeping legacy fields just in case
+    description: Optional[str] = None
+    status: Optional[str] = None
     owner: Optional[str] = None
+    agent_name: Optional[str] = None
+    agent_email: Optional[str] = None
+    agent_phone: Optional[str] = None
     image_ids: Optional[List[int]] = []
+
+    # NEW: Tracking fields
+    posted_by_id: Optional[int] = None
+    posted_by_role: Optional[str] = None
+
+    
 
 class PropertyResponse(PropertyCreate):
     id: int 
-    is_approved: bool = False 
+    is_approved: bool 
     created_date: Optional[datetime] = None
     updated_date: Optional[datetime] = None
-    image_ids: List[int] = Field(default_factory=list)
+    
     model_config = ConfigDict(from_attributes=True)
 
 class ImageDownloadRequest(BaseModel):
