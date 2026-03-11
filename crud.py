@@ -88,9 +88,10 @@ def search_properties(
         query = query.filter(
             or_(
                 Property.title.ilike(search_format),
-                Property.city.ilike(search_format),           # Updated mapping
-                Property.map_address.ilike(search_format),    # Updated mapping
-                Property.builder_name.ilike(search_format)    # Updated mapping
+                Property.city.ilike(search_format),          
+                Property.map_address.ilike(search_format),   
+                Property.builder_name.ilike(search_format),   
+                Property.nearby_landmarks.ilike(search_format)
             )
         )
 
