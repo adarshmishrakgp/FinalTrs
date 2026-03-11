@@ -296,3 +296,43 @@ def get_matching_properties_for_requirement(db: Session, req_id: int, customer_i
 
     matched_properties = query.all()
     return _attach_images_to_properties(db, matched_properties)
+
+def get_all_matching_properties_for_customer(db: Session, customer_id: int):
+    try:
+        requirements = db.query(BuyRequirement).filter(BuyRequirement.customer_id == customer_id).all()
+        
+        if not requirements:
+            return [] 
+        unique_properties = {}
+        for req in requirements:
+            query = db.query(Property).filter(Property.is_approved == True)
+            
+            if req.property_type:
+                query = query.filter(Property.property_type.ilike(f"%{req.property_type}%"))
+            if req.min_price is not None:
+                query = query.filter(Property.expected_price >= req.min_price)
+            if req.max_price is not None:
+                query = query.filter(Property.expected_price <= req.max_price)
+            if req.min_carpet_area is not None:
+                query = query.filter(Property.carpet_area >= req.min_carpet_area)
+            if req.max_carpet_area is not None:
+                query = query.filter(Property.carpet_area <= req.max_carpet_area)
+            if req.city:
+                city_format = f"%{req.city}%"
+                query = query.filter(
+                    or_(
+                        Property.city.ilike(city_format),
+                        Property.map_address.ilike(city_format),
+                        Property.title.ilike(city_format)
+                    )
+                )
+                
+            for prop in query.all():
+                unique_properties[prop.id] = prop
+                
+        matched_properties_list = list(unique_properties.values())
+        return _attach_images_to_properties(db, matched_properties_list)
+        
+    except Exception as e:
+        db.rollback()
+        raise e

@@ -513,9 +513,6 @@ def update_property(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    """
-    Updates a property that belongs to the currently logged-in user.
-    """
     try:
         updated_prop = crud.update_my_property(
             db=db, 
@@ -545,9 +542,6 @@ def delete_property(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    """
-    Deletes a property that belongs to the currently logged-in user.
-    """
     try:
         success = crud.delete_my_property(
             db=db, 
@@ -592,8 +586,7 @@ async def upload_profile_image(
     validate_image_file(image)
     try:
         image_url = upload_file_to_s3(image, db, folder="profiles")
-        
-        # Determine the correct model based on role
+
         if user.role == "customer":
             db_user = db.query(models.Customer).filter(models.Customer.id == user.id).first()
         elif user.role == "agent":
@@ -633,6 +626,17 @@ def get_my_requirements(db: Session = Depends(get_db), user = Depends(get_curren
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to retrieve requirements")
 
+@app.get("/api/customer/buy-requirements/matches/all", response_model=list[schemas.PropertyResponse])
+def get_all_requirement_matches(
+    db: Session = Depends(get_db), 
+    user = Depends(get_current_customer)
+):
+    try:
+        matches = crud.get_all_matching_properties_for_customer(db, user.id)
+        return matches
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to find matched properties: {str(e)}")
+    
 @app.delete("/api/customer/buy-requirements/{req_id}")
 def delete_requirement(req_id: int, db: Session = Depends(get_db), user = Depends(get_current_customer)):
     try:
@@ -644,8 +648,6 @@ def delete_requirement(req_id: int, db: Session = Depends(get_db), user = Depend
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to delete requirement")
     
-# In main.py (Customer API Routes section)
-
 @app.get("/api/customer/buy-requirements/{req_id}/matches", response_model=list[schemas.PropertyResponse])
 def get_requirement_matches(req_id: int, db: Session = Depends(get_db), user = Depends(get_current_customer)):
     try:
@@ -657,11 +659,11 @@ def get_requirement_matches(req_id: int, db: Session = Depends(get_db), user = D
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to find matched properties: {str(e)}")
+    
 
 @app.post("/api/customer/favourites/{property_id}")
 def add_favourite(property_id: int, db: Session = Depends(get_db), user = Depends(get_current_customer)):
     try:
-        # Validate property actually exists!
         prop = db.query(models.Property).filter(models.Property.id == property_id).first()
         if not prop:
             raise HTTPException(status_code=404, detail="Property not found")
