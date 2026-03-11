@@ -6,7 +6,7 @@ from models import Customer, BuyRequirement, Favourite, Enquiry, Agent, Builder
 from collections import defaultdict
 import io
 import zipfile
-from sqlalchemy import or_
+from sqlalchemy import or_,func
 from typing import Optional
 
 def create_property(db: Session, property_data: PropertyCreate, is_approved: bool = False):
@@ -89,7 +89,7 @@ def search_properties(
             or_(
                 Property.title.ilike(search_format),
                 Property.city.ilike(search_format),          
-                Property.map_address.ilike(search_format),   
+                func.coalesce(Property.map_address, "").ilike(search_format),   
                 Property.builder_name.ilike(search_format),   
                 Property.nearby_landmarks.ilike(search_format)
             )
