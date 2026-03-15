@@ -247,12 +247,16 @@ def get_properties(skip: int = 0, limit: int = 10, db: Session = Depends(get_db)
         raise HTTPException(status_code=500, detail=f"Failed to fetch properties: {str(e)}")
 
 @app.get("/properties/search", response_model=list[schemas.PropertyResponse])
+@app.get("/properties/search", response_model=list[schemas.PropertyResponse])
 def search_properties_api(
-    search_query: Optional[str] = Query(None, description="Search by title, location, description, or agent"),
+    search_query: Optional[str] = Query(None, description="Search by title, location, description, or builder"),
     property_type: Optional[str] = None,
     min_price: Optional[float] = None,
     max_price: Optional[float] = None,
     bedrooms: Optional[int] = None,
+    bathrooms: Optional[int] = None,
+    possession_status: Optional[str] = Query(None, description="e.g., Ready to Move, Under Construction"),
+    is_price_negotiable: Optional[bool] = None,
     status: Optional[str] = Query(None, description="e.g., Sell, Rent"),
     skip: int = 0,
     limit: int = 10,
@@ -260,9 +264,18 @@ def search_properties_api(
 ):
     try:
         return crud.search_properties(
-            db=db, search_query=search_query, property_type=property_type, 
-            min_price=min_price, max_price=max_price, bedrooms=bedrooms, 
-            status=status, skip=skip, limit=limit
+            db=db, 
+            search_query=search_query, 
+            property_type=property_type, 
+            min_price=min_price, 
+            max_price=max_price, 
+            bedrooms=bedrooms, 
+            bathrooms=bathrooms,
+            possession_status=possession_status,
+            is_price_negotiable=is_price_negotiable,
+            status=status, 
+            skip=skip, 
+            limit=limit
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")

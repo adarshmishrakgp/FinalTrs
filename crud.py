@@ -133,7 +133,10 @@ def search_properties(
     min_price: Optional[float] = None,
     max_price: Optional[float] = None,
     bedrooms: Optional[int] = None,
-    status: Optional[str] = None,
+    bathrooms: Optional[int] = None,            
+    possession_status: Optional[str] = None,     
+    is_price_negotiable: Optional[bool] = None,  
+    status: Optional[str] = None,                
     skip: int = 0,
     limit: int = 10
 ):
@@ -150,11 +153,25 @@ def search_properties(
             )
         )
 
-    if property_type: query = query.filter(Property.property_type.ilike(property_type))
-    if min_price is not None: query = query.filter(Property.expected_price >= min_price)
-    if max_price is not None: query = query.filter(Property.expected_price <= max_price)
-    if bedrooms is not None: query = query.filter(Property.bedrooms == bedrooms)
-    if status: query = query.filter(Property.possession_status.ilike(status)) # Updated mapping
+    if property_type: 
+        query = query.filter(Property.property_type.ilike(property_type))
+    if min_price is not None: 
+        query = query.filter(Property.expected_price >= min_price)
+    if max_price is not None: 
+        query = query.filter(Property.expected_price <= max_price)
+    if bedrooms is not None: 
+        query = query.filter(Property.bedrooms == bedrooms)
+    if bathrooms is not None:
+        query = query.filter(Property.bathrooms == bathrooms)
+        
+    if possession_status:
+        query = query.filter(Property.possession_status.ilike(f"%{possession_status}%"))
+        
+    if is_price_negotiable is not None:
+        query = query.filter(Property.is_price_negotiable == is_price_negotiable)
+        
+    if status: 
+        query = query.filter(Property.status.ilike(status)) 
 
     properties = query.offset(skip).limit(limit).all()
     return _attach_images_to_properties(db, properties)
